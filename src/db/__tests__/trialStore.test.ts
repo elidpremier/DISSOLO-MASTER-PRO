@@ -104,7 +104,7 @@ describe("Sauvegarde et récupération d'un essai", () => {
   it("getTrial stocke l'appVersion", async () => {
     const storageId = await saveTrial(configRef, recordsRef, startedAt);
     const trial = await getTrial(storageId);
-    expect(trial.appVersion).toMatch(/M3/);
+    expect(trial.appVersion).toMatch(/M4/);
   });
 
   it("getTrial lève TrialStoreError si le storageId est inconnu", async () => {

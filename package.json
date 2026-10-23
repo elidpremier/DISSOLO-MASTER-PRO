@@ -1,6 +1,6 @@
 {
   "name": "dissolo-master-pro",
-  "version": "0.3.0-M3",
+  "version": "0.4.0-M4",
   "description": "PWA hors-ligne pour les essais de dissolution in vitro — recherche universitaire en pharmacie galénique",
   "private": true,
   "type": "module",

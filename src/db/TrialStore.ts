@@ -24,7 +24,7 @@ import type { ActionEvent } from "../timer/EventRecord";
 const DB_NAME = "dissolo-master-pro";
 const DB_VERSION = 1;
 const STORE_TRIALS = "trials";
-const APP_VERSION = "0.3.0-M3";
+const APP_VERSION = "0.4.0-M4";
 
 // ---------------------------------------------------------------------------
 // Types

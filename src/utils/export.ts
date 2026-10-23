@@ -10,7 +10,7 @@ import type { TrialConfig } from "../types/timeline";
 import type { ActionEvent } from "../timer/EventRecord";
 import { formatDeviation, formatOffsetMs, actionLabel } from "./format";
 
-const APP_VERSION = "0.2.0-M2";
+const APP_VERSION = "0.4.0-M4";
 
 // ---------------------------------------------------------------------------
 // Export JSON
