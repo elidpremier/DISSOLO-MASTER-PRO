@@ -188,10 +188,11 @@ describe("Données scientifiques M4", () => {
 
   it("conserve les mesures brutes séparément des événements", async () => {
     const storageId = await saveTrial(configRef, recordsRef, startedAt);
-    await saveScientificData(storageId, { correctionConfig: correctionRef, measurements: measurementsRef });
+    await saveScientificData(storageId, { correctionConfig: correctionRef, methodConfig: { analyticalMethod: "uv-vis", quantificationMethod: "e1-percent", concentrationUnit: "mg/L", e1Percent: 250, pathLengthCm: 1 }, measurements: measurementsRef });
     const trial = await getTrial(storageId);
     expect(trial.records).toEqual(recordsRef);
     expect(trial.scientificData?.measurements).toEqual(measurementsRef);
+    expect(trial.scientificData?.methodConfig?.e1Percent).toBe(250);
     expect(trial.scientificData?.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 

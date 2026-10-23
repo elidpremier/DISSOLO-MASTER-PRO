@@ -11,6 +11,18 @@ export type AnalyticalMethod = "uv-vis" | "clhp";
 /** Unités de concentration prises en charge par le moteur initial. */
 export type ConcentrationUnit = "mg/L" | "µg/mL";
 
+/** Origine de la quantification : concentration déjà calculée ou E1% en spectro. */
+export type QuantificationMethod = "concentration" | "e1-percent";
+
+/** Paramètres analytiques communs à une série de mesures. */
+export interface AnalyticalMethodConfig {
+  analyticalMethod: AnalyticalMethod;
+  quantificationMethod: QuantificationMethod;
+  concentrationUnit: ConcentrationUnit;
+  e1Percent?: number;
+  pathLengthCm?: number;
+}
+
 /** Mode de remplacement après chaque prélèvement. */
 export type ReplacementMode = "full" | "none";
 
@@ -22,8 +34,18 @@ export interface RawMeasurement {
   value: number;
   unit: ConcentrationUnit;
   analyticalMethod: AnalyticalMethod;
+  /** En mode e1-percent, value correspond à l'absorbance mesurée. */
+  quantificationMethod?: QuantificationMethod;
+  /** Absorbance spécifique E1% (solution à 1 % m/V, trajet optique 1 cm). */
+  e1Percent?: number;
+  /** Longueur de trajet optique de la cuve, en cm. */
+  pathLengthCm?: number;
   /** Facteur multiplicatif appliqué à la concentration mesurée (≥ 1). */
   dilutionFactor: number;
+  /** Groupe de comparaison (p. ex. « Référence » ou « Essai »). */
+  formulation?: string;
+  /** Teneur en principe actif par unité de cette formulation, en mg. */
+  referenceAmountMg?: number;
   annotation?: string;
 }
 
@@ -39,6 +61,7 @@ export interface DissolutionCorrectionConfig {
 /** Ensemble de données M4 lié à un essai, conservé à part de la chronologie. */
 export interface ScientificDataset {
   correctionConfig: DissolutionCorrectionConfig;
+  methodConfig?: AnalyticalMethodConfig;
   measurements: RawMeasurement[];
   updatedAt: string;
 }

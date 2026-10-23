@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateDescriptiveStatistics, compareProfiles, correctSuccessiveSampling, toMgPerL } from "../science";
+import { calculateDescriptiveStatistics, compareProfiles, correctSuccessiveSampling, quantifyConcentrationMgPerL, toMgPerL } from "../science";
 import type { DissolutionCorrectionConfig, RawMeasurement } from "../../types/science";
 import { ScientificValidationError } from "../../types/science";
 
@@ -35,6 +35,17 @@ describe("Correction des prélèvements successifs", () => {
     expect(toMgPerL(3, "µg/mL")).toBe(3);
     expect(result.correctedConcentrationMgPerL).toBe(6);
     expect(result.cumulativeAmountMg).toBeCloseTo(5.4);
+  });
+
+  it("quantifie une absorbance avec E1% sans standard", () => {
+    const raw = { ...measurement("e1", 5, 0.5), quantificationMethod: "e1-percent" as const, e1Percent: 250, pathLengthCm: 1 };
+    // C = 0,5 × 10 000 / (250 × 1) = 20 mg/L
+    expect(quantifyConcentrationMgPerL(raw)).toBe(20);
+    expect(correctSuccessiveSampling([raw], correction)[0].cumulativeAmountMg).toBeCloseTo(18);
+  });
+
+  it("rejette E1% nul", () => {
+    expect(() => quantifyConcentrationMgPerL({ ...measurement("e1", 5, 0.5), quantificationMethod: "e1-percent", e1Percent: 0 })).toThrow(ScientificValidationError);
   });
 
   it("rejette deux temps identiques dans une même cuve", () => {

@@ -29,6 +29,28 @@ export function toMgPerL(value: number, unit: RawMeasurement["unit"]): number {
 }
 
 /**
+ * Convertit une mesure brute en concentration mg/L.
+ * Pour E1%, A = E1% × c(%) × l : c(mg/L) = A × 10 000 / (E1% × l).
+ * Cette relation suppose une absorbance corrigée du blanc et une réponse
+ * linéaire dans les conditions expérimentales ; ces hypothèses restent à
+ * vérifier par l'opérateur pour chaque méthode.
+ */
+export function quantifyConcentrationMgPerL(measurement: RawMeasurement): number {
+  if ((measurement.quantificationMethod ?? "concentration") === "concentration") {
+    return toMgPerL(measurement.value, measurement.unit);
+  }
+  const e1Percent = measurement.e1Percent;
+  if (!Number.isFinite(e1Percent) || e1Percent === undefined || e1Percent <= 0) {
+    throw new ScientificValidationError("e1Percent", "doit être un nombre fini strictement positif pour la méthode E1%.");
+  }
+  const pathLengthCm = measurement.pathLengthCm ?? 1;
+  if (!Number.isFinite(pathLengthCm) || pathLengthCm <= 0) {
+    throw new ScientificValidationError("pathLengthCm", "doit être un nombre fini strictement positif pour la méthode E1%.");
+  }
+  return (measurement.value * 10_000) / (e1Percent * pathLengthCm);
+}
+
+/**
  * Corrige les prélèvements successifs d'une même cuve.
  *
  * Hypothèses : milieu homogène, prélèvement représentatif, même volume à
@@ -61,7 +83,7 @@ export function correctSuccessiveSampling(
     }
     previousTime = raw.samplingTimeMin;
 
-    const concentrationMgPerL = toMgPerL(raw.value, raw.unit);
+    const concentrationMgPerL = quantifyConcentrationMgPerL(raw);
     const correctedConcentrationMgPerL = concentrationMgPerL * raw.dilutionFactor;
     const effectiveVolumeMl = config.replacementMode === "full"
       ? config.mediumVolumeMl
@@ -173,6 +195,9 @@ function validateMeasurement(measurement: RawMeasurement): void {
   assertFiniteStrictlyPositive("samplingTimeMin", measurement.samplingTimeMin);
   assertFinitePositiveOrZero("value", measurement.value);
   assertFiniteStrictlyPositive("dilutionFactor", measurement.dilutionFactor);
+  if (measurement.quantificationMethod && measurement.quantificationMethod !== "concentration" && measurement.quantificationMethod !== "e1-percent") {
+    throw new ScientificValidationError("quantificationMethod", "doit être « concentration » ou « e1-percent ».");
+  }
 }
 
 function validateRules(rules: ProfileComparisonRules): void {
