@@ -203,6 +203,17 @@ describe("Données scientifiques M4", () => {
       measurements: [{ ...measurementsRef[0], dilutionFactor: 0 }],
     })).rejects.toBeInstanceOf(TrialStoreError);
   });
+
+  it("conserve les révisions scientifiques précédentes", async () => {
+    const storageId = await saveTrial(configRef, recordsRef, startedAt);
+    await saveScientificData(storageId, { correctionConfig: correctionRef, measurements: measurementsRef });
+    await saveScientificData(storageId, { correctionConfig: correctionRef, measurements: [{ ...measurementsRef[0], value: 13.5 }] });
+    const trial = await getTrial(storageId);
+    expect(trial.scientificData?.revision).toBe(2);
+    expect(trial.scientificRevisions).toHaveLength(2);
+    expect(trial.scientificRevisions?.[0]?.measurements[0]?.value).toBe(12.5);
+    expect(trial.scientificRevisions?.[1]?.measurements[0]?.value).toBe(13.5);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -214,6 +225,8 @@ describe("Import d'un essai depuis un JSON exporté", () => {
 
   const validPayload = {
     exportVersion: "0.2.0-M2",
+    schemaVersion: 2,
+    intendedUse: "research-reference-only",
     exportedAt: "2026-10-21T08:00:00.000Z",
     config: configRef,
     events: [

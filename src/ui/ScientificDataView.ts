@@ -3,7 +3,7 @@
 import type { StoredTrial } from "../db/TrialStore";
 import { saveScientificData } from "../db/TrialStore";
 import { calculateDescriptiveStatistics, compareProfiles, correctSuccessiveSampling } from "../engine/science";
-import type { AnalyticalMethodConfig, DissolutionCorrectionConfig, RawMeasurement } from "../types/science";
+import type { AnalyticalMethodConfig, DissolutionCorrectionConfig, LaboratoryMetadata, RawMeasurement } from "../types/science";
 import { printScientificReport } from "../utils/report";
 
 export class ScientificDataView {
@@ -15,6 +15,7 @@ export class ScientificDataView {
   private pathLengthCm: number;
   private analyticalMethod: RawMeasurement["analyticalMethod"];
   private concentrationUnit: RawMeasurement["unit"];
+  private laboratoryMetadata: LaboratoryMetadata;
 
   constructor(private readonly trial: StoredTrial, private readonly onBack: () => void) {
     this.measurements = [...(trial.scientificData?.measurements ?? [])];
@@ -28,6 +29,10 @@ export class ScientificDataView {
     this.pathLengthCm = methodConfig?.pathLengthCm ?? firstMeasurement?.pathLengthCm ?? 1;
     this.analyticalMethod = methodConfig?.analyticalMethod ?? firstMeasurement?.analyticalMethod ?? "uv-vis";
     this.concentrationUnit = methodConfig?.concentrationUnit ?? firstMeasurement?.unit ?? "mg/L";
+    this.laboratoryMetadata = trial.scientificData?.laboratoryMetadata ?? {
+      operatorId: "", productName: "", batchId: "", dosageForm: "", methodReference: "", methodVersion: "",
+      apparatusId: "", instrumentId: "", mediumDescription: "",
+    };
   }
 
   mount(root: HTMLElement): void {
@@ -46,6 +51,7 @@ export class ScientificDataView {
         <h1 class="results-header__title">🧬 Données de dissolution</h1>
         <p class="results-header__subtitle">${escapeHtml(this.trial.config.id)} — mesures brutes et calculs exploratoires</p>
       </div>
+      <div class="conflict-item" style="margin-bottom:var(--s5)">⚠ Outil de recherche et de référence uniquement. Ne remplace ni la monographie officielle, ni un SOP, ni un LIMS, et ne produit pas de décision réglementaire.</div>
       <div class="card" style="margin-bottom:var(--s5)">
         <div class="card__title">Méthode — définie une fois pour la série</div>
         <div class="form-grid">
@@ -64,6 +70,22 @@ export class ScientificDataView {
           ${numberInput("path-length", "Trajet optique (cm, si spectro)", this.pathLengthCm, "0.001")}
         </div>
         <p class="storage-note">E1% et trajet optique sont des paramètres analytiques. Ils sont copiés dans chaque mesure lors de sa saisie pour conserver le calcul reproductible.</p>
+      </div>
+      <div class="card" style="margin-bottom:var(--s5)">
+        <div class="card__title">Contexte de recherche</div>
+        <div class="form-grid">
+          ${textInput("operator-id", "Opérateur / identifiant", this.laboratoryMetadata.operatorId, true)}
+          ${textInput("product-name", "Produit", this.laboratoryMetadata.productName, true)}
+          ${textInput("batch-id", "Lot / série", this.laboratoryMetadata.batchId, true)}
+          ${textInput("dosage-form", "Forme / dosage", this.laboratoryMetadata.dosageForm, true)}
+          ${textInput("method-reference", "Référence méthode / monographie", this.laboratoryMetadata.methodReference, true)}
+          ${textInput("method-version", "Version méthode", this.laboratoryMetadata.methodVersion, true)}
+          ${textInput("apparatus-id", "Appareil de dissolution", this.laboratoryMetadata.apparatusId, true)}
+          ${textInput("instrument-id", "Instrument analytique", this.laboratoryMetadata.instrumentId, true)}
+          ${textInput("medium-description", "Milieu / composition", this.laboratoryMetadata.mediumDescription, true)}
+          ${numberInput("temperature-c", "Température (°C)", this.laboratoryMetadata.temperatureC ?? "", "0.01", false)}
+          ${numberInput("rotation-rpm", "Rotation (tr/min)", this.laboratoryMetadata.rotationRpm ?? "", "0.01", false)}
+        </div>
       </div>
       <div class="card" style="margin-bottom:var(--s5)">
         <div class="card__title">Ajouter une mesure brute</div>
@@ -181,16 +203,17 @@ export class ScientificDataView {
 
   private async save(): Promise<void> {
     this.correctionConfig = this.readCorrectionConfig(); this.readMethodConfig();
+    this.laboratoryMetadata = this.readLaboratoryMetadata();
     try {
       // Validation complète incluse dans la sauvegarde ; elle ne touche pas aux événements de l'essai.
-      await saveScientificData(this.trial.storageId, { correctionConfig: this.correctionConfig, methodConfig: this.currentMethodConfig(), measurements: this.measurements });
+      await saveScientificData(this.trial.storageId, { correctionConfig: this.correctionConfig, methodConfig: this.currentMethodConfig(), laboratoryMetadata: this.laboratoryMetadata, measurements: this.measurements });
       this.render(); this.showMessage("✓ Données scientifiques enregistrées.", true);
     } catch (error) { this.showMessage(error instanceof Error ? error.message : "Échec de l'enregistrement.", false); }
   }
 
   private printReport(): void {
     this.correctionConfig = this.readCorrectionConfig(); this.readMethodConfig();
-    printScientificReport({ ...this.trial, scientificData: { correctionConfig: this.correctionConfig, methodConfig: this.currentMethodConfig(), measurements: this.measurements, updatedAt: new Date().toISOString() } });
+    printScientificReport({ ...this.trial, scientificData: { correctionConfig: this.correctionConfig, methodConfig: this.currentMethodConfig(), laboratoryMetadata: this.laboratoryMetadata, measurements: this.measurements, updatedAt: new Date().toISOString(), revision: this.trial.scientificData?.revision ?? 0 } });
   }
 
   private showMessage(message: string, ok: boolean): void {
@@ -216,6 +239,28 @@ export class ScientificDataView {
     this.concentrationUnit = (query<HTMLSelectElement>("method-unit")?.value ?? "mg/L") as RawMeasurement["unit"];
   }
 
+  private readLaboratoryMetadata(): LaboratoryMetadata {
+    const query = <T extends HTMLInputElement>(id: string) => this.container?.querySelector<T>(`#${id}`);
+    const text = (id: string): string => query(id)?.value.trim() ?? "";
+    const number = (id: string): number | undefined => {
+      const value = query(id)?.value;
+      return value ? Number(value) : undefined;
+    };
+    return {
+      operatorId: text("operator-id"),
+      productName: text("product-name"),
+      batchId: text("batch-id"),
+      dosageForm: text("dosage-form"),
+      methodReference: text("method-reference"),
+      methodVersion: text("method-version"),
+      apparatusId: text("apparatus-id"),
+      instrumentId: text("instrument-id"),
+      mediumDescription: text("medium-description"),
+      temperatureC: number("temperature-c"),
+      rotationRpm: number("rotation-rpm"),
+    };
+  }
+
   private currentMethodConfig(): AnalyticalMethodConfig {
     return {
       analyticalMethod: this.analyticalMethod,
@@ -235,6 +280,10 @@ export class ScientificDataView {
 
 function numberInput(id: string, label: string, value: number | string, step: string, required = true): string {
   return `<label class="form-group"><span class="form-label">${label}</span><input id="${id}" class="form-input" type="number" min="0" step="${step}" ${required ? "required" : ""} value="${value}" /></label>`;
+}
+
+function textInput(id: string, label: string, value: string, required: boolean): string {
+  return `<label class="form-group"><span class="form-label">${label}</span><input id="${id}" class="form-input" type="text" maxlength="200" ${required ? "required" : ""} value="${escapeHtml(value)}" /></label>`;
 }
 
 function escapeHtml(value: string): string { return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }

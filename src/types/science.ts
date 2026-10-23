@@ -14,6 +14,22 @@ export type ConcentrationUnit = "mg/L" | "µg/mL";
 /** Origine de la quantification : concentration déjà calculée ou E1% en spectro. */
 export type QuantificationMethod = "concentration" | "e1-percent";
 
+/** Métadonnées de recherche nécessaires pour reconstruire le contexte de l'essai. */
+export interface LaboratoryMetadata {
+  operatorId: string;
+  productName: string;
+  batchId: string;
+  dosageForm: string;
+  methodReference: string;
+  methodVersion: string;
+  apparatusId: string;
+  instrumentId: string;
+  mediumDescription: string;
+  temperatureC?: number;
+  rotationRpm?: number;
+  notes?: string;
+}
+
 /** Paramètres analytiques communs à une série de mesures. */
 export interface AnalyticalMethodConfig {
   analyticalMethod: AnalyticalMethod;
@@ -62,8 +78,10 @@ export interface DissolutionCorrectionConfig {
 export interface ScientificDataset {
   correctionConfig: DissolutionCorrectionConfig;
   methodConfig?: AnalyticalMethodConfig;
+  laboratoryMetadata: LaboratoryMetadata;
   measurements: RawMeasurement[];
   updatedAt: string;
+  revision: number;
 }
 
 /** Résultat dérivé d'une mesure brute ; les deux valeurs coexistent. */

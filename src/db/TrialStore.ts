@@ -16,7 +16,7 @@
 import { openDB, type IDBPDatabase } from "idb";
 import type { TrialConfig } from "../types/timeline";
 import type { ActionEvent } from "../timer/EventRecord";
-import type { ScientificDataset } from "../types/science";
+import type { LaboratoryMetadata, ScientificDataset } from "../types/science";
 
 // ---------------------------------------------------------------------------
 // Constantes
@@ -51,6 +51,7 @@ export interface StoredTrial {
   appVersion: string;
   /** Mesures brutes et paramètres M4 ; absent pour les essais historiques. */
   scientificData?: ScientificDataset;
+  scientificRevisions?: ScientificDataset[];
 }
 
 /** Métadonnées légères pour la liste des essais (sans les records). */
@@ -210,20 +211,25 @@ export async function countTrials(): Promise<number> {
  */
 export async function saveScientificData(
   storageId: string,
-  data: Omit<ScientificDataset, "updatedAt">,
+  data: Omit<ScientificDataset, "updatedAt" | "revision" | "laboratoryMetadata"> & { laboratoryMetadata?: LaboratoryMetadata },
 ): Promise<void> {
   validateScientificData(data);
   try {
     const db = await getDb();
     const trial = await db.get(STORE_TRIALS, storageId) as StoredTrial | undefined;
     if (!trial) throw new TrialStoreError(`Essai introuvable : ${storageId}`);
+    const revision = (trial.scientificRevisions?.at(-1)?.revision ?? trial.scientificData?.revision ?? 0) + 1;
+    const laboratoryMetadata = data.laboratoryMetadata ?? defaultLaboratoryMetadata();
     const scientificData: ScientificDataset = {
       correctionConfig: structuredClone(data.correctionConfig),
       ...(data.methodConfig ? { methodConfig: structuredClone(data.methodConfig) } : {}),
+      laboratoryMetadata: structuredClone(laboratoryMetadata),
       measurements: structuredClone(data.measurements),
       updatedAt: new Date().toISOString(),
+      revision,
     };
-    await db.put(STORE_TRIALS, { ...trial, scientificData });
+    const scientificRevisions = [...(trial.scientificRevisions ?? []), scientificData];
+    await db.put(STORE_TRIALS, { ...trial, scientificData, scientificRevisions });
   } catch (err) {
     if (err instanceof TrialStoreError) throw err;
     throw new TrialStoreError("Échec de la sauvegarde des données scientifiques.", err);
@@ -293,6 +299,8 @@ function isValidExportPayload(raw: unknown): boolean {
   if (!raw || typeof raw !== "object") return false;
   const obj = raw as Record<string, unknown>;
   if (typeof obj["exportVersion"] !== "string") return false;
+  if (obj["intendedUse"] !== "research-reference-only") return false;
+  if (obj["schemaVersion"] !== 2) return false;
   if (!obj["config"] || typeof obj["config"] !== "object") return false;
   if (!Array.isArray(obj["events"])) return false;
   const config = obj["config"] as Record<string, unknown>;
@@ -301,10 +309,37 @@ function isValidExportPayload(raw: unknown): boolean {
   return true;
 }
 
-function validateScientificData(data: Omit<ScientificDataset, "updatedAt">): void {
+function defaultLaboratoryMetadata(): LaboratoryMetadata {
+  return {
+    operatorId: "non renseigné",
+    productName: "non renseigné",
+    batchId: "non renseigné",
+    dosageForm: "non renseigné",
+    methodReference: "non renseigné",
+    methodVersion: "non renseigné",
+    apparatusId: "non renseigné",
+    instrumentId: "non renseigné",
+    mediumDescription: "non renseigné",
+  };
+}
+
+function validateScientificData(data: Omit<ScientificDataset, "updatedAt" | "revision" | "laboratoryMetadata"> & { laboratoryMetadata?: LaboratoryMetadata }): void {
   const cfg = data.correctionConfig;
   if (!cfg || !Array.isArray(data.measurements)) {
     throw new TrialStoreError("Données scientifiques invalides.");
+  }
+  const metadata = (data.laboratoryMetadata ?? defaultLaboratoryMetadata()) as LaboratoryMetadata;
+  for (const [field, value] of Object.entries(metadata)) {
+    if (field !== "temperatureC" && field !== "rotationRpm" && field !== "notes" && (typeof value !== "string" || !value.trim())) {
+      throw new TrialStoreError(`Métadonnée de laboratoire manquante : ${field}.`);
+    }
+
+  }
+  for (const value of [metadata.temperatureC, metadata.rotationRpm]) {
+    if (value !== undefined && (!Number.isFinite(value) || value <= 0)) {
+      throw new TrialStoreError("Les paramètres physiques doivent être strictement positifs.");
+    }
+
   }
   for (const value of [cfg.mediumVolumeMl, cfg.sampleVolumeMl, cfg.referenceAmountMg]) {
     if (!Number.isFinite(value) || value <= 0) throw new TrialStoreError("Paramètres de correction invalides.");

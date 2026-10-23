@@ -11,7 +11,8 @@ import type { ActionEvent } from "../timer/EventRecord";
 import type { ScientificDataset } from "../types/science";
 import { formatDeviation, formatOffsetMs, actionLabel } from "./format";
 
-const APP_VERSION = "0.4.0-M4";
+const APP_VERSION = "0.5.0-research";
+const EXPORT_SCHEMA_VERSION = 2;
 
 // ---------------------------------------------------------------------------
 // Export JSON
@@ -19,6 +20,8 @@ const APP_VERSION = "0.4.0-M4";
 
 export interface ExportPayload {
   exportVersion: string;
+  schemaVersion: number;
+  intendedUse: "research-reference-only";
   exportedAt: string;
   config: TrialConfig;
   events: ActionEventExport[];
@@ -52,6 +55,8 @@ export function buildExportPayload(
 ): ExportPayload {
   return {
     exportVersion: APP_VERSION,
+    schemaVersion: EXPORT_SCHEMA_VERSION,
+    intendedUse: "research-reference-only",
     exportedAt: new Date().toISOString(),
     config,
     events: records.map((r) => ({
