@@ -4,6 +4,7 @@ import type { StoredTrial } from "../db/TrialStore";
 import { saveScientificData } from "../db/TrialStore";
 import { calculateDescriptiveStatistics, compareProfiles, correctSuccessiveSampling } from "../engine/science";
 import type { AnalyticalMethodConfig, DissolutionCorrectionConfig, RawMeasurement } from "../types/science";
+import { printScientificReport } from "../utils/report";
 
 export class ScientificDataView {
   private container: HTMLElement | null = null;
@@ -80,7 +81,7 @@ export class ScientificDataView {
       </div>
       ${this.renderMeasurements()}
       ${this.renderDerivedResults()}
-      <div class="results-actions"><button class="btn btn--ghost" id="science-back">← Résultats</button><button class="btn btn--primary" id="science-save">💾 Enregistrer les données</button></div>
+      <div class="results-actions"><button class="btn btn--ghost" id="science-back">← Résultats</button><div style="display:flex;gap:var(--s3);flex-wrap:wrap"><button class="btn btn--ghost" id="science-report">🖨 Rapport / PDF</button><button class="btn btn--primary" id="science-save">💾 Enregistrer les données</button></div></div>
       <p class="storage-note">Les mesures brutes restent distinctes des valeurs corrigées. Les calculs sont exploratoires et ne constituent pas une conclusion réglementaire.</p>
     `;
     this.bindEvents();
@@ -131,13 +132,14 @@ export class ScientificDataView {
       profiles.set(formulation, profile);
     }
     const summary = `<div class="card" style="margin-bottom:var(--s5)"><div class="card__title">Statistiques descriptives par formulation et temps</div><table class="results-table"><thead><tr><th>Formulation</th><th>Temps</th><th>n</th><th>Moyenne</th><th>SD</th><th>%CV</th></tr></thead><tbody>${aggregateRows.join("")}</tbody></table></div>`;
-    if (profiles.size !== 2) return `${summary}<div class="card" style="margin-bottom:var(--s5)"><p class="text-muted">La comparaison f1/f2 requiert exactement deux formulations renseignées.</p></div>`;
+    const chart = renderProfileChart(profiles);
+    if (profiles.size !== 2) return `${summary}${chart}<div class="card" style="margin-bottom:var(--s5)"><p class="text-muted">La comparaison f1/f2 requiert exactement deux formulations renseignées.</p></div>`;
     const [referenceName, testName] = [...profiles.keys()];
     const result = compareProfiles(profiles.get(referenceName)!, profiles.get(testName)!, { id: "research-f1-f2", version: "1.0.0", minimumPoints: 3 });
     const resultHtml = result.notEvaluableReasons.length
       ? `<p class="text-muted">Non évaluable : ${result.notEvaluableReasons.map(escapeHtml).join(" ")}</p>`
       : `<div class="results-stats"><div class="stat-card"><div class="stat-card__value">${result.f1!.toFixed(2)}</div><div class="stat-card__label">f1</div></div><div class="stat-card"><div class="stat-card__value">${result.f2!.toFixed(2)}</div><div class="stat-card__label">f2</div></div></div><p class="text-muted" style="margin-top:var(--s3)">Résultat numérique exploratoire entre « ${escapeHtml(referenceName)} » et « ${escapeHtml(testName)} » ; aucune conclusion réglementaire n’est déduite automatiquement.</p>`;
-    return `${summary}<div class="card" style="margin-bottom:var(--s5)"><div class="card__title">Comparaison des profils (f1 / f2)</div>${resultHtml}</div>`;
+    return `${summary}${chart}<div class="card" style="margin-bottom:var(--s5)"><div class="card__title">Comparaison des profils (f1 / f2)</div>${resultHtml}</div>`;
   }
 
   private bindEvents(): void {
@@ -173,6 +175,7 @@ export class ScientificDataView {
       this.measurements = this.measurements.filter((m) => m.id !== button.dataset["remove"]); this.render();
     }));
     this.container?.querySelector("#science-back")?.addEventListener("click", this.onBack);
+    this.container?.querySelector("#science-report")?.addEventListener("click", () => this.printReport());
     this.container?.querySelector("#science-save")?.addEventListener("click", () => void this.save());
   }
 
@@ -183,6 +186,11 @@ export class ScientificDataView {
       await saveScientificData(this.trial.storageId, { correctionConfig: this.correctionConfig, methodConfig: this.currentMethodConfig(), measurements: this.measurements });
       this.render(); this.showMessage("✓ Données scientifiques enregistrées.", true);
     } catch (error) { this.showMessage(error instanceof Error ? error.message : "Échec de l'enregistrement.", false); }
+  }
+
+  private printReport(): void {
+    this.correctionConfig = this.readCorrectionConfig(); this.readMethodConfig();
+    printScientificReport({ ...this.trial, scientificData: { correctionConfig: this.correctionConfig, methodConfig: this.currentMethodConfig(), measurements: this.measurements, updatedAt: new Date().toISOString() } });
   }
 
   private showMessage(message: string, ok: boolean): void {
@@ -230,3 +238,23 @@ function numberInput(id: string, label: string, value: number | string, step: st
 }
 
 function escapeHtml(value: string): string { return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+
+function renderProfileChart(profiles: Map<string, { timeMin: number; dissolvedPercent: number }[]>): string {
+  if (!profiles.size) return "";
+  const points = [...profiles.values()].flat();
+  const maxTime = Math.max(...points.map((point) => point.timeMin));
+  const maxPercent = Math.max(100, ...points.map((point) => point.dissolvedPercent));
+  const width = 720, height = 300, left = 54, right = 18, top = 20, bottom = 42;
+  const x = (value: number) => left + (value / maxTime) * (width - left - right);
+  const y = (value: number) => top + (1 - value / maxPercent) * (height - top - bottom);
+  const colors = ["#60a5fa", "#a78bfa", "#34d399", "#fbbf24"];
+  const grid = [0, 25, 50, 75, 100].filter((value) => value <= maxPercent).map((value) => `<g><line x1="${left}" x2="${width - right}" y1="${y(value)}" y2="${y(value)}" stroke="rgba(148,163,184,.25)"/><text x="${left - 8}" y="${y(value) + 4}" text-anchor="end" fill="#94a3b8" font-size="11">${value}</text></g>`).join("");
+  const lines = [...profiles.entries()].map(([name, profile], index) => {
+    const color = colors[index % colors.length];
+    const path = profile.map((point, pointIndex) => `${pointIndex ? "L" : "M"}${x(point.timeMin).toFixed(1)},${y(point.dissolvedPercent).toFixed(1)}`).join(" ");
+    const dots = profile.map((point) => `<circle cx="${x(point.timeMin)}" cy="${y(point.dissolvedPercent)}" r="4" fill="${color}"/>`).join("");
+    return `<path d="${path}" fill="none" stroke="${color}" stroke-width="3"/>${dots}<text x="${left + index * 155}" y="${height - 10}" fill="${color}" font-size="12">● ${escapeHtml(name)}</text>`;
+  }).join("");
+  const ticks = [...new Set(points.map((point) => point.timeMin))].sort((a, b) => a - b).map((time) => `<text x="${x(time)}" y="${height - 27}" text-anchor="middle" fill="#94a3b8" font-size="11">${time}</text>`).join("");
+  return `<div class="card" style="margin-bottom:var(--s5)"><div class="card__title">Profils moyens de dissolution</div><div style="overflow-x:auto"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Profils moyens de dissolution" style="width:100%;min-width:560px;display:block">${grid}<line x1="${left}" x2="${width - right}" y1="${height - bottom}" y2="${height - bottom}" stroke="#94a3b8"/>${ticks}${lines}<text x="${left}" y="12" fill="#94a3b8" font-size="11">% dissous</text><text x="${width - right}" y="${height - 27}" text-anchor="end" fill="#94a3b8" font-size="11">Temps (min)</text></svg></div></div>`;
+}
