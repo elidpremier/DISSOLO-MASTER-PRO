@@ -1,0 +1,21 @@
+{
+  "name": "DissoloMaster Pro",
+  "short_name": "DissoloMaster",
+  "description": "Séquenceur et analyseur d'essais de dissolution in vitro — recherche universitaire en pharmacie galénique.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080c17",
+  "theme_color": "#3b82f6",
+  "orientation": "any",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "medical", "productivity"],
+  "screenshots": []
+}

@@ -21,10 +21,17 @@ import { downloadJSON, downloadCSV } from "../utils/export";
 export class ResultsView {
   private container: HTMLElement | null = null;
 
+  /**
+   * @param config       Configuration de l'essai.
+   * @param records      Enregistrements des actions.
+   * @param onNewTrial   Callback retour à Setup (null = mode lecture seule).
+   * @param onHistory    Callback vers l'historique (optionnel).
+   */
   constructor(
     private readonly config: TrialConfig,
     private readonly records: ActionEvent[],
-    private readonly onNewTrial: () => void
+    private readonly onNewTrial: (() => void) | null,
+    private readonly onHistory?: () => void
   ) {}
 
   mount(root: HTMLElement): void {
@@ -122,9 +129,18 @@ export class ResultsView {
 
       <!-- Actions -->
       <div class="results-actions">
-        <button class="btn btn--primary btn--lg" id="btn-new-trial">
-          ＋ Nouvel essai
-        </button>
+        <div style="display:flex;gap:var(--s3);flex-wrap:wrap">
+          ${this.onNewTrial
+            ? `<button class="btn btn--primary btn--lg" id="btn-new-trial">
+                ＋ Nouvel essai
+               </button>`
+            : ""}
+          ${this.onHistory
+            ? `<button class="btn btn--ghost" id="btn-history">
+                ← Historique
+               </button>`
+            : ""}
+        </div>
         <div class="results-actions__export">
           <button class="btn btn--ghost" id="btn-export-json">
             ↓ Exporter JSON
@@ -190,9 +206,17 @@ export class ResultsView {
   }
 
   private bindEvents(): void {
-    this.container
-      ?.querySelector("#btn-new-trial")
-      ?.addEventListener("click", () => this.onNewTrial());
+    if (this.onNewTrial) {
+      this.container
+        ?.querySelector("#btn-new-trial")
+        ?.addEventListener("click", () => this.onNewTrial!());
+    }
+
+    if (this.onHistory) {
+      this.container
+        ?.querySelector("#btn-history")
+        ?.addEventListener("click", () => this.onHistory!());
+    }
 
     this.container
       ?.querySelector("#btn-export-json")

@@ -1,6 +1,6 @@
 {
   "name": "dissolo-master-pro",
-  "version": "0.1.0",
+  "version": "0.3.0-M3",
   "description": "PWA hors-ligne pour les essais de dissolution in vitro — recherche universitaire en pharmacie galénique",
   "private": true,
   "type": "module",
@@ -9,11 +9,19 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:db": "vitest run --config vitest.db.config.ts",
+    "test:all": "vitest run && vitest run --config vitest.db.config.ts"
   },
   "devDependencies": {
+    "fake-indexeddb": "^6.2.6",
+    "happy-dom": "^21.0.4",
     "typescript": "^5.6.3",
     "vite": "^6.0.0",
+    "vite-plugin-pwa": "^2.0.0",
     "vitest": "^2.1.4"
+  },
+  "dependencies": {
+    "idb": "^8.0.4"
   }
 }

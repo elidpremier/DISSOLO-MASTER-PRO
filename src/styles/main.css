@@ -1,6 +1,6 @@
 /* ============================================================
    DissoloMaster Pro — Design System
-   Version M2
+   Version M3
    ============================================================ */
 
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
@@ -1227,4 +1227,310 @@ textarea {
   .results-stats { grid-template-columns: repeat(2, 1fr); }
   .alert-zone__timer { font-size: 2.5rem; }
   .alert-zone__action-name { font-size: 1.2rem; }
+  .history-grid { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   16. PWA — STATUS HORS LIGNE + INSTALLATION (M3)
+   ============================================================ */
+
+/* --- Bannière hors ligne --- */
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s4);
+  background: var(--warning-subtle);
+  border-bottom: 1px solid var(--warning-border);
+  color: var(--warning-400);
+  font-size: 0.82rem;
+  font-weight: 500;
+  animation: slide-down 0.3s ease;
+}
+
+.offline-banner__icon { font-size: 1rem; }
+
+/* Indicateur compact dans le header */
+.header-offline-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warning-500);
+  animation: pulse-dot 1.5s ease infinite;
+  flex-shrink: 0;
+}
+
+/* --- Prompt d'installation PWA --- */
+.install-prompt {
+  position: fixed;
+  bottom: var(--s5);
+  right: var(--s5);
+  z-index: 400;
+  background: var(--bg-700);
+  border: 1px solid var(--blue-border);
+  border-radius: var(--r-xl);
+  padding: var(--s5) var(--s6);
+  box-shadow: var(--shadow-lg), var(--shadow-blue);
+  max-width: 320px;
+  animation: slide-up 0.4s ease;
+}
+
+.install-prompt__title {
+  font-size: 0.87rem;
+  font-weight: 700;
+  color: var(--text-100);
+  margin-bottom: var(--s2);
+}
+
+.install-prompt__body {
+  font-size: 0.8rem;
+  color: var(--text-400);
+  margin-bottom: var(--s4);
+  line-height: 1.5;
+}
+
+.install-prompt__actions {
+  display: flex;
+  gap: var(--s3);
+  justify-content: flex-end;
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Bouton historique dans le header */
+.app-header__history-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 4px var(--s3);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+  color: var(--text-400);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast),
+    border-color var(--t-fast);
+}
+
+.app-header__history-btn:hover {
+  background: var(--glass-bg-hover);
+  color: var(--text-100);
+  border-color: var(--glass-border-focus);
+}
+
+/* Indicateur de sauvegarde (flash temporaire après auto-save) */
+.save-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  font-size: 0.73rem;
+  color: var(--success-400);
+  animation: fade-out 2.5s ease forwards;
+}
+
+@keyframes fade-out {
+  0%, 70% { opacity: 1; }
+  100%     { opacity: 0; }
+}
+
+/* ============================================================
+   17. VUE HISTORIQUE (M3)
+   ============================================================ */
+
+.history-view {
+  animation: fade-in 0.3s ease;
+}
+
+.history-view__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--s6);
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+
+.history-view__title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-100);
+  letter-spacing: -0.02em;
+}
+
+.history-view__actions {
+  display: flex;
+  gap: var(--s3);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Grille des cartes d'essais */
+.history-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin-bottom: var(--s6);
+}
+
+.history-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s4) var(--s5);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
+  transition: background var(--t-fast), border-color var(--t-base);
+}
+
+.history-card:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-focus);
+}
+
+.history-card__info { min-width: 0; }
+
+.history-card__id {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-100);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+
+.history-card__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-size: 0.75rem;
+  color: var(--text-500);
+  flex-wrap: wrap;
+}
+
+.history-card__meta-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--text-500);
+  flex-shrink: 0;
+}
+
+.history-card__stats {
+  display: flex;
+  gap: var(--s2);
+  align-items: center;
+}
+
+.history-card__stat {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.73rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+}
+
+.history-card__stat--ok {
+  background: var(--success-subtle);
+  color: var(--success-400);
+  border: 1px solid var(--success-border);
+}
+
+.history-card__stat--miss {
+  background: var(--danger-subtle);
+  color: var(--danger-400);
+  border: 1px solid var(--danger-border);
+}
+
+.history-card__stat--total {
+  background: var(--neutral-subtle);
+  color: var(--text-400);
+  border: 1px solid var(--neutral-border);
+}
+
+.history-card__btns {
+  display: flex;
+  gap: var(--s2);
+  flex-shrink: 0;
+}
+
+/* Zone vide */
+.history-empty {
+  text-align: center;
+  padding: var(--s16) var(--s8);
+  color: var(--text-500);
+}
+
+.history-empty__icon {
+  font-size: 3rem;
+  margin-bottom: var(--s4);
+  display: block;
+}
+
+.history-empty__text {
+  font-size: 0.9rem;
+  margin-bottom: var(--s2);
+  color: var(--text-400);
+}
+
+.history-empty__hint {
+  font-size: 0.8rem;
+}
+
+/* Zone d'import par glissér-déposé */
+.import-zone {
+  border: 2px dashed var(--glass-border);
+  border-radius: var(--r-lg);
+  padding: var(--s8);
+  text-align: center;
+  color: var(--text-500);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color var(--t-base), background var(--t-base);
+}
+
+.import-zone:hover,
+.import-zone--dragover {
+  border-color: var(--blue-400);
+  background: var(--blue-subtle);
+  color: var(--blue-400);
+}
+
+.import-zone__icon {
+  font-size: 2rem;
+  display: block;
+  margin-bottom: var(--s3);
+}
+
+.import-result {
+  margin-top: var(--s3);
+  font-size: 0.8rem;
+  text-align: center;
+  animation: fade-in 0.3s ease;
+}
+
+.import-result--ok   { color: var(--success-400); }
+.import-result--err  { color: var(--danger-400); }
+
+/* Note sur les limites de stockage */
+.storage-note {
+  font-size: 0.75rem;
+  color: var(--text-500);
+  line-height: 1.6;
+  padding: var(--s3) var(--s4);
+  border-left: 2px solid var(--glass-border);
+  margin-top: var(--s4);
 }
