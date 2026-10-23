@@ -104,6 +104,11 @@ class App {
                   title="Historique des essais">
             📂 Historique
           </button>
+          <button class="app-header__history-btn" id="header-install-btn"
+                  title="Installer l'application sur cet appareil"
+                  style="display:none">
+            ⬇ Installer
+          </button>
         </div>
       </header>
       <main class="app-main"></main>
@@ -115,60 +120,102 @@ class App {
   // -------------------------------------------------------------------------
 
   private initPWA(): void {
-    // Indicateur hors ligne dans le header
+    // --- Indicateur hors ligne ---
     const updateOnline = (): void => {
-      const dot = document.querySelector(".header-offline-dot");
+      const existing = document.querySelector(".header-offline-dot");
       if (!navigator.onLine) {
-        if (!dot) {
-          const d = document.createElement("span");
-          d.className = "header-offline-dot";
-          d.title = "Hors ligne — l'application fonctionne depuis le cache";
-          this.historyBtnEl.before(d);
+        if (!existing) {
+          const dot = document.createElement("span");
+          dot.className = "header-offline-dot";
+          dot.title = "Hors ligne — l'application fonctionne depuis le cache";
+          this.historyBtnEl.before(dot);
         }
       } else {
-        dot?.remove();
+        existing?.remove();
       }
     };
-
     window.addEventListener("online", updateOnline);
     window.addEventListener("offline", updateOnline);
-    updateOnline(); // état initial
+    updateOnline();
 
-    // Capture du prompt d'installation PWA
+    // --- Bouton d'installation PWA ---
+    const installBtn = document.getElementById("header-install-btn") as HTMLButtonElement | null;
+
+    // Vérifier si l'app est déjà installée (mode standalone)
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      ("standalone" in navigator && (navigator as { standalone?: boolean }).standalone === true);
+
+    if (isStandalone) {
+      // Déjà installée : on masque le bouton, inutile
+      if (installBtn) installBtn.style.display = "none";
+    } else {
+      // Afficher immédiatement un bouton "Installer" qui explique comment procéder
+      // si beforeinstallprompt n'est pas encore disponible (ex. en dev)
+      if (installBtn) {
+        installBtn.style.display = "";
+        installBtn.addEventListener("click", () => {
+          if (this.installPromptEvent) {
+            // Prompt natif disponible → le déclencher
+            // @ts-expect-error — prompt() sur BeforeInstallPromptEvent
+            void this.installPromptEvent.prompt();
+            this.installPromptEvent = null;
+            installBtn.textContent = "✓ Installation lancée";
+            installBtn.disabled = true;
+          } else {
+            // Pas encore de prompt (dev ou navigateur non compatible) →
+            // afficher une modale d'instructions
+            this.showInstallInstructions();
+          }
+        });
+      }
+    }
+
+    // Capturer le prompt quand le navigateur le propose (build + HTTPS/localhost)
     window.addEventListener("beforeinstallprompt", (e) => {
       e.preventDefault();
       this.installPromptEvent = e;
-      this.showInstallPrompt();
+      // Mettre à jour le bouton pour signaler qu'il est prêt
+      if (installBtn) {
+        installBtn.style.display = "";
+        installBtn.textContent = "⬇ Installer";
+        installBtn.disabled = false;
+        installBtn.style.color = "var(--blue-400)";
+        installBtn.style.borderColor = "var(--blue-border)";
+      }
+    });
+
+    // App installée : masquer le bouton
+    window.addEventListener("appinstalled", () => {
+      if (installBtn) installBtn.style.display = "none";
+      this.installPromptEvent = null;
     });
   }
 
-  private showInstallPrompt(): void {
-    // Eviter d'afficher deux fois
-    if (document.getElementById("pwa-install-prompt")) return;
+  private showInstallInstructions(): void {
+    const existing = document.getElementById("pwa-install-instructions");
+    if (existing) { existing.remove(); return; }
 
-    const prompt = document.createElement("div");
-    prompt.id = "pwa-install-prompt";
-    prompt.className = "install-prompt";
-    prompt.innerHTML = `
-      <div class="install-prompt__title">🧪 Installer DissoloMaster Pro</div>
+    const modal = document.createElement("div");
+    modal.id = "pwa-install-instructions";
+    modal.className = "install-prompt";
+    modal.innerHTML = `
+      <div class="install-prompt__title">⬇ Installer DissoloMaster Pro</div>
       <div class="install-prompt__body">
-        Installez l'application sur votre bureau pour un accès hors ligne et des alertes optimales.
+        Pour installer l'application hors ligne, deux options selon votre contexte :
+        <br/><br/>
+        <strong>Chrome / Edge :</strong> Lancez la version de production
+        (<code>npm run build &amp;&amp; npm run preview</code>) et cliquez sur
+        l'icône ⊕ dans la barre d'adresse.<br/><br/>
+        <strong>Firefox :</strong> L'installation PWA n'est pas encore supportée
+        en dehors des outils de développement.
       </div>
       <div class="install-prompt__actions">
-        <button class="btn btn--ghost btn--sm" id="pwa-dismiss">Plus tard</button>
-        <button class="btn btn--primary btn--sm" id="pwa-install">Installer</button>
+        <button class="btn btn--primary btn--sm" id="pwa-instr-close">Fermer</button>
       </div>
     `;
-    document.body.appendChild(prompt);
-
-    document.getElementById("pwa-dismiss")?.addEventListener("click", () => prompt.remove());
-    document.getElementById("pwa-install")?.addEventListener("click", async () => {
-      if (!this.installPromptEvent) return;
-      // @ts-expect-error — prompt() existe sur BeforeInstallPromptEvent
-      await this.installPromptEvent.prompt();
-      this.installPromptEvent = null;
-      prompt.remove();
-    });
+    document.body.appendChild(modal);
+    document.getElementById("pwa-instr-close")?.addEventListener("click", () => modal.remove());
   }
 
   // -------------------------------------------------------------------------

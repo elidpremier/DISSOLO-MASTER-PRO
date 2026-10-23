@@ -90,13 +90,28 @@ export class TimerEngine {
 
   /**
    * Lance l'essai : enregistre T0 monotone et démarre la boucle RAF.
+   *
+   * Le point de départ interne est avancé de `preAlertMs` afin que la
+   * première action (schedMs=0) déclenche sa pré-alerte dès le lancement
+   * plutôt que d'être immédiatement marquée comme sautée.
+   *
+   * Concrètement : elapsedMs démarre à −preAlertMs (valeur négative).
+   * La pré-alerte de la première action se déclenche immédiatement (condition
+   * elapsedMs ≥ −preAlertMs satisfaite), son échéance arrive preAlertMs ms
+   * plus tard en temps réel.
    */
   start(actions: TimelineAction[]): void {
     if (this.rafId !== null) this.stop();
     this.records = actions.map(createActionEvent);
     this.completionEmitted = false;
-    this.startPerf = performance.now();
-    this.lastFramePerf = this.startPerf;
+    // Avancer le point de départ afin d'inclure la fenêtre de pré-alerte
+    // pour la première action :
+    //   elapsedMs = perf.now() − startPerf
+    //   à t=0 réel : elapsedMs = −preAlertMs
+    //   à t=preAlertMs réel : elapsedMs = 0 → première échéance
+    const now = performance.now();
+    this.startPerf = now + this.preAlertMs; // startPerf dans le futur
+    this.lastFramePerf = now;
     this.rafId = requestAnimationFrame(this.tick);
   }
 
