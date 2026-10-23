@@ -16,10 +16,12 @@ import {
   deleteTrial,
   countTrials,
   importTrialFromJSON,
+  saveScientificData,
   TrialStoreError,
 } from "../TrialStore";
 import type { TrialConfig } from "../../types/timeline";
 import type { ActionEvent } from "../../timer/EventRecord";
+import type { DissolutionCorrectionConfig, RawMeasurement } from "../../types/science";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -61,6 +63,13 @@ const recordsRef: ActionEvent[] = [
 ];
 
 const startedAt = "2026-10-23T10:00:00.000Z";
+const correctionRef: DissolutionCorrectionConfig = {
+  mediumVolumeMl: 900, sampleVolumeMl: 10, replacementMode: "full", referenceAmountMg: 100,
+};
+const measurementsRef: RawMeasurement[] = [{
+  id: "m-1", vesselId: 1, samplingTimeMin: 5, value: 12.5, unit: "mg/L",
+  analyticalMethod: "uv-vis", dilutionFactor: 2,
+}];
 
 // ---------------------------------------------------------------------------
 // Reset DB entre les suites (réinitialise le singleton)
@@ -171,6 +180,27 @@ describe("Suppression d'un essai", () => {
 
   it("deleteTrial est idempotent sur un id inexistant", async () => {
     await expect(deleteTrial("id-inexistant")).resolves.toBeUndefined();
+  });
+});
+
+describe("Données scientifiques M4", () => {
+  beforeEach(clearStore);
+
+  it("conserve les mesures brutes séparément des événements", async () => {
+    const storageId = await saveTrial(configRef, recordsRef, startedAt);
+    await saveScientificData(storageId, { correctionConfig: correctionRef, measurements: measurementsRef });
+    const trial = await getTrial(storageId);
+    expect(trial.records).toEqual(recordsRef);
+    expect(trial.scientificData?.measurements).toEqual(measurementsRef);
+    expect(trial.scientificData?.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("rejette une mesure brute invalide", async () => {
+    const storageId = await saveTrial(configRef, recordsRef, startedAt);
+    await expect(saveScientificData(storageId, {
+      correctionConfig: correctionRef,
+      measurements: [{ ...measurementsRef[0], dilutionFactor: 0 }],
+    })).rejects.toBeInstanceOf(TrialStoreError);
   });
 });
 

@@ -28,13 +28,14 @@ import { PreviewView } from "./ui/PreviewView";
 import { RunningView } from "./ui/RunningView";
 import { ResultsView } from "./ui/ResultsView";
 import { HistoryView } from "./ui/HistoryView";
+import { ScientificDataView } from "./ui/ScientificDataView";
 import { saveTrial, TrialStoreError } from "./db/TrialStore";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type AppPhase = "setup" | "preview" | "running" | "results" | "history";
+type AppPhase = "setup" | "preview" | "running" | "results" | "history" | "science";
 
 interface Unmountable {
   unmount(): void;
@@ -243,6 +244,7 @@ class App {
       running: "Essai en cours",
       results: "Résultats",
       history: "Historique",
+      science: "Données scientifiques",
     };
     this.headerPhaseEl.textContent = labels[phase];
     this.headerTrialEl.textContent = trialId ?? "—";
@@ -329,8 +331,17 @@ class App {
       trial.config,
       trial.records,
       null,
-      () => this.showHistory()
+      () => this.showHistory(),
+      () => this.showScientificData(trial)
     );
+    view.mount(this.mainEl);
+    this.currentView = view;
+  }
+
+  private showScientificData(trial: StoredTrial): void {
+    this.clearView();
+    this.updateHeader("science", trial.config.id);
+    const view = new ScientificDataView(trial, () => this.showStoredTrial(trial));
     view.mount(this.mainEl);
     this.currentView = view;
   }

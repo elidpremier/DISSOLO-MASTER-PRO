@@ -8,6 +8,7 @@
 
 import type { TrialConfig } from "../types/timeline";
 import type { ActionEvent } from "../timer/EventRecord";
+import type { ScientificDataset } from "../types/science";
 import { formatDeviation, formatOffsetMs, actionLabel } from "./format";
 
 const APP_VERSION = "0.4.0-M4";
@@ -21,6 +22,7 @@ export interface ExportPayload {
   exportedAt: string;
   config: TrialConfig;
   events: ActionEventExport[];
+  scientificData?: ScientificDataset;
 }
 
 export interface ActionEventExport {
@@ -45,7 +47,8 @@ export interface ActionEventExport {
  */
 export function buildExportPayload(
   config: TrialConfig,
-  records: ActionEvent[]
+  records: ActionEvent[],
+  scientificData?: ScientificDataset,
 ): ExportPayload {
   return {
     exportVersion: APP_VERSION,
@@ -67,14 +70,15 @@ export function buildExportPayload(
       annotation: r.annotation,
       preAlertSkipped: r.preAlertSkipped,
     })),
+    ...(scientificData ? { scientificData } : {}),
   };
 }
 
 /**
  * Déclenche le téléchargement d'un fichier JSON.
  */
-export function downloadJSON(config: TrialConfig, records: ActionEvent[]): void {
-  const payload = buildExportPayload(config, records);
+export function downloadJSON(config: TrialConfig, records: ActionEvent[], scientificData?: ScientificDataset): void {
+  const payload = buildExportPayload(config, records, scientificData);
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json",
   });

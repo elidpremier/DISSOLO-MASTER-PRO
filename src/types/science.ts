@@ -36,6 +36,13 @@ export interface DissolutionCorrectionConfig {
   referenceAmountMg: number;
 }
 
+/** Ensemble de données M4 lié à un essai, conservé à part de la chronologie. */
+export interface ScientificDataset {
+  correctionConfig: DissolutionCorrectionConfig;
+  measurements: RawMeasurement[];
+  updatedAt: string;
+}
+
 /** Résultat dérivé d'une mesure brute ; les deux valeurs coexistent. */
 export interface CorrectedMeasurement {
   raw: RawMeasurement;

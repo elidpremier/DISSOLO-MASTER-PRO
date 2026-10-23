@@ -16,13 +16,14 @@
 import { openDB, type IDBPDatabase } from "idb";
 import type { TrialConfig } from "../types/timeline";
 import type { ActionEvent } from "../timer/EventRecord";
+import type { ScientificDataset } from "../types/science";
 
 // ---------------------------------------------------------------------------
 // Constantes
 // ---------------------------------------------------------------------------
 
 const DB_NAME = "dissolo-master-pro";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_TRIALS = "trials";
 const APP_VERSION = "0.4.0-M4";
 
@@ -48,6 +49,8 @@ export interface StoredTrial {
   completedAt: string;
   /** Version de l'application pour la traçabilité et la reproductibilité. */
   appVersion: string;
+  /** Mesures brutes et paramètres M4 ; absent pour les essais historiques. */
+  scientificData?: ScientificDataset;
 }
 
 /** Métadonnées légères pour la liste des essais (sans les records). */
@@ -202,6 +205,31 @@ export async function countTrials(): Promise<number> {
 }
 
 /**
+ * Enregistre ou remplace explicitement les données scientifiques d'un essai.
+ * Les événements temporels et la configuration ne sont jamais modifiés.
+ */
+export async function saveScientificData(
+  storageId: string,
+  data: Omit<ScientificDataset, "updatedAt">,
+): Promise<void> {
+  validateScientificData(data);
+  try {
+    const db = await getDb();
+    const trial = await db.get(STORE_TRIALS, storageId) as StoredTrial | undefined;
+    if (!trial) throw new TrialStoreError(`Essai introuvable : ${storageId}`);
+    const scientificData: ScientificDataset = {
+      correctionConfig: structuredClone(data.correctionConfig),
+      measurements: structuredClone(data.measurements),
+      updatedAt: new Date().toISOString(),
+    };
+    await db.put(STORE_TRIALS, { ...trial, scientificData });
+  } catch (err) {
+    if (err instanceof TrialStoreError) throw err;
+    throw new TrialStoreError("Échec de la sauvegarde des données scientifiques.", err);
+  }
+}
+
+/**
  * Vérifie que IndexedDB est disponible dans l'environnement actuel.
  * Retourne false en mode navigation privée sur certains navigateurs.
  */
@@ -226,14 +254,18 @@ export async function importTrialFromJSON(raw: unknown): Promise<string> {
     );
   }
 
-  const payload = raw as { config: TrialConfig; events: ActionEvent[]; exportedAt: string };
+  const payload = raw as { config: TrialConfig; events: ActionEvent[]; exportedAt: string; scientificData?: ScientificDataset };
 
   // Construire un StoredTrial depuis le payload d'export
   // Les records ont une structure légèrement différente (events → records)
   // On reconstruit des ActionEvent minimaux depuis les events exportés
   const records = rebuildRecordsFromExport(payload.events);
 
-  return saveTrial(payload.config, records, payload.exportedAt);
+  const storageId = await saveTrial(payload.config, records, payload.exportedAt);
+  if (payload.scientificData) {
+    await saveScientificData(storageId, payload.scientificData);
+  }
+  return storageId;
 }
 
 // ---------------------------------------------------------------------------
@@ -266,6 +298,29 @@ function isValidExportPayload(raw: unknown): boolean {
   if (typeof config["id"] !== "string") return false;
   if (typeof config["vesselCount"] !== "number") return false;
   return true;
+}
+
+function validateScientificData(data: Omit<ScientificDataset, "updatedAt">): void {
+  const cfg = data.correctionConfig;
+  if (!cfg || !Array.isArray(data.measurements)) {
+    throw new TrialStoreError("Données scientifiques invalides.");
+  }
+  for (const value of [cfg.mediumVolumeMl, cfg.sampleVolumeMl, cfg.referenceAmountMg]) {
+    if (!Number.isFinite(value) || value <= 0) throw new TrialStoreError("Paramètres de correction invalides.");
+  }
+  if (cfg.replacementMode !== "full" && cfg.replacementMode !== "none") {
+    throw new TrialStoreError("Mode de remplacement invalide.");
+  }
+  for (const measurement of data.measurements) {
+    if (!measurement.id || !Number.isInteger(measurement.vesselId) || measurement.vesselId < 1 ||
+      !Number.isFinite(measurement.samplingTimeMin) || measurement.samplingTimeMin <= 0 ||
+      !Number.isFinite(measurement.value) || measurement.value < 0 ||
+      !Number.isFinite(measurement.dilutionFactor) || measurement.dilutionFactor <= 0 ||
+      (measurement.unit !== "mg/L" && measurement.unit !== "µg/mL") ||
+      (measurement.analyticalMethod !== "uv-vis" && measurement.analyticalMethod !== "clhp")) {
+      throw new TrialStoreError("Une mesure brute est invalide.");
+    }
+  }
 }
 
 /**

@@ -263,7 +263,7 @@ export class HistoryView {
     try {
       const trial = await getTrial(storageId);
       if (format === "json") {
-        downloadJSON(trial.config, trial.records);
+        downloadJSON(trial.config, trial.records, trial.scientificData);
       } else {
         downloadCSV(trial.config, trial.records);
       }

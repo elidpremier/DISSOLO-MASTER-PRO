@@ -31,7 +31,8 @@ export class ResultsView {
     private readonly config: TrialConfig,
     private readonly records: ActionEvent[],
     private readonly onNewTrial: (() => void) | null,
-    private readonly onHistory?: () => void
+    private readonly onHistory?: () => void,
+    private readonly onScientificData?: () => void,
   ) {}
 
   mount(root: HTMLElement): void {
@@ -140,6 +141,9 @@ export class ResultsView {
                 ← Historique
                </button>`
             : ""}
+          ${this.onScientificData
+            ? `<button class="btn btn--ghost" id="btn-scientific-data">🧬 Données de dissolution</button>`
+            : ""}
         </div>
         <div class="results-actions__export">
           <button class="btn btn--ghost" id="btn-export-json">
@@ -216,6 +220,9 @@ export class ResultsView {
       this.container
         ?.querySelector("#btn-history")
         ?.addEventListener("click", () => this.onHistory!());
+    }
+    if (this.onScientificData) {
+      this.container?.querySelector("#btn-scientific-data")?.addEventListener("click", () => this.onScientificData!());
     }
 
     this.container
