@@ -1080,6 +1080,144 @@ textarea {
 }
 
 /* ============================================================
+   14b. INFOBULLES (tooltip)
+   ============================================================ */
+
+/**
+ * Icône ⓘ placée à côté d'un label.
+ * L'infobulle apparaît au survol et au focus (accessibilité clavier).
+ */
+.tooltip-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--text-500);
+  color: var(--text-500);
+  font-size: 0.6rem;
+  font-weight: 700;
+  font-style: normal;
+  cursor: help;
+  position: relative;
+  margin-left: var(--s1);
+  vertical-align: middle;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: border-color var(--t-fast), color var(--t-fast),
+    background var(--t-fast);
+  /* nécessaire pour positionner l'infobulle */
+}
+
+.tooltip-trigger:hover,
+.tooltip-trigger:focus {
+  border-color: var(--blue-400);
+  color: var(--blue-400);
+  background: var(--blue-subtle);
+  outline: none;
+}
+
+/* L'infobulle elle-même */
+.tooltip-trigger::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  /* apparaît au-dessus par défaut */
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  /* style */
+  background: var(--bg-700);
+  border: 1px solid var(--glass-border-focus);
+  border-radius: var(--r-md);
+  padding: var(--s3) var(--s4);
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--text-300);
+  white-space: normal;
+  width: 230px;
+  line-height: 1.6;
+  text-align: left;
+  z-index: 300;
+  box-shadow: var(--shadow-lg);
+  /* invisible par défaut */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-fast);
+}
+
+/* Petite flèche vers le bas */
+.tooltip-trigger::after {
+  content: "";
+  position: absolute;
+  bottom: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--glass-border-focus);
+  z-index: 301;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-fast);
+}
+
+.tooltip-trigger:hover::before,
+.tooltip-trigger:focus::before,
+.tooltip-trigger:hover::after,
+.tooltip-trigger:focus::after {
+  opacity: 1;
+}
+
+/* Variante positionnée en bas (pour les champs en haut du formulaire) */
+.tooltip-trigger--below::before {
+  bottom: auto;
+  top: calc(100% + 10px);
+}
+.tooltip-trigger--below::after {
+  bottom: auto;
+  top: calc(100% + 3px);
+  border-top-color: transparent;
+  border-bottom-color: var(--glass-border-focus);
+}
+
+/* Champ numérique désactivé par la case "Désactiver" */
+.form-input:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Conteneur inline : champ + case à cocher "Désactiver" */
+.inline-field-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.inline-field-row .form-input {
+  flex: 1;
+}
+
+.disable-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  cursor: pointer;
+  white-space: nowrap;
+  color: var(--text-400);
+  font-size: 0.82rem;
+  user-select: none;
+}
+
+.disable-toggle input[type="checkbox"] {
+  accent-color: var(--blue-500);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+
+/* ============================================================
    15. RESPONSIVE
    ============================================================ */
 

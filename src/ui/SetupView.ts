@@ -2,13 +2,55 @@
  * ui/SetupView.ts
  * Formulaire de configuration d'un essai de dissolution.
  *
- * Valide les entrées via generateTimeline (moteur M1) avant la transition.
- * Affiche les messages d'erreur explicites (section 4.1).
+ * Chaque paramètre dispose d'une infobulle accessible au survol et au focus
+ * (icône ⓘ à côté du label). Conforme à la section 4.1 du cahier des charges.
+ *
+ * Champ "missedThresholdSec" : délai configurable avant marquage automatique
+ * "manquée", avec option de désactivation totale.
  */
 
 import type { TrialConfig } from "../types/timeline";
 import { ConfigValidationError } from "../types/timeline";
 import { generateTimeline } from "../engine/generateTimeline";
+
+// ---------------------------------------------------------------------------
+// Textes des infobulles
+// ---------------------------------------------------------------------------
+
+const TIPS: Record<string, string> = {
+  id: "Identifiant unique de l'essai. Utilisé comme nom de base dans les exports JSON et CSV.",
+  vesselCount:
+    "Nombre de cuves (flacons) de dissolution. Entier ≥ 1. Chaque cuve reçoit sa propre séquence introduction → prélèvements.",
+  introOffsetSec:
+    "Décalage en secondes entre l'introduction de deux cuves consécutives. 0 = toutes introduites simultanément. Doit être un entier (Q3).",
+  samplingTimesMin:
+    "Temps de prélèvement en minutes, relatifs à l'introduction de chaque cuve. Séparés par des virgules. Exemple : 5, 15, 30, 45, 60.",
+  preAlertSec:
+    "Durée en secondes avant l'échéance à laquelle la pré-alerte est déclenchée (3 bips + alerte visuelle). Exemple : 5 s.",
+  conflictThresholdSec:
+    "Seuil configurable : deux actions séparées par moins de ce délai sont signalées comme conflit potentiel. Valeur non réglementaire.",
+  missedThresholdSec:
+    "Délai en secondes après l'échéance sans confirmation au-delà duquel l'action est automatiquement marquée « manquée ». Désactivez pour ne jamais marquer automatiquement (vous devrez gérer manuellement les oublis).",
+};
+
+// ---------------------------------------------------------------------------
+// Helpers HTML
+// ---------------------------------------------------------------------------
+
+/**
+ * Génère le HTML d'une icône d'infobulle (ⓘ).
+ * @param key   Clé dans TIPS.
+ * @param below Vrai si la bulle doit s'ouvrir vers le bas (champs en haut de page).
+ */
+function tip(key: string, below = false): string {
+  const text = TIPS[key] ?? "";
+  const cls = below ? "tooltip-trigger tooltip-trigger--below" : "tooltip-trigger";
+  return `<span class="${cls}" data-tooltip="${text}" tabindex="0" role="note" aria-label="${text}">i</span>`;
+}
+
+// ---------------------------------------------------------------------------
+// SetupView
+// ---------------------------------------------------------------------------
 
 export class SetupView {
   private container: HTMLElement | null = null;
@@ -36,16 +78,19 @@ export class SetupView {
         <h1 class="setup-view__title">🧪 Nouvel essai</h1>
         <p class="setup-view__subtitle">
           Configurez les paramètres de l'essai de dissolution.
-          Les unités sont indiquées à côté de chaque champ.
+          Survolez l'icône <strong style="color:var(--text-300)">ⓘ</strong>
+          à côté de chaque champ pour obtenir une explication.
         </p>
       </div>
 
       <div class="card card--elevated">
         <form class="setup-view__form" id="setup-form" novalidate>
 
+          <!-- Identifiant -->
           <div class="form-group">
             <label class="form-label" for="field-id">
               Identifiant de l'essai
+              ${tip("id", true)}
             </label>
             <input
               class="form-input"
@@ -58,10 +103,12 @@ export class SetupView {
             />
           </div>
 
+          <!-- Cuves + décalage -->
           <div class="form-grid">
             <div class="form-group">
               <label class="form-label" for="field-vessels">
                 Nombre de cuves
+                ${tip("vesselCount", true)}
               </label>
               <input
                 class="form-input"
@@ -77,6 +124,7 @@ export class SetupView {
               <label class="form-label" for="field-offset">
                 Décalage d'introduction
                 <span class="form-label__unit">secondes entières</span>
+                ${tip("introOffsetSec", true)}
               </label>
               <input
                 class="form-input"
@@ -90,10 +138,12 @@ export class SetupView {
             </div>
           </div>
 
+          <!-- Temps de prélèvement -->
           <div class="form-group">
             <label class="form-label" for="field-times">
               Temps de prélèvement
               <span class="form-label__unit">minutes — séparés par des virgules</span>
+              ${tip("samplingTimesMin")}
             </label>
             <input
               class="form-input"
@@ -104,15 +154,17 @@ export class SetupView {
               value="5, 10, 15, 30, 45, 60"
             />
             <span class="form-hint">
-              Les temps sont relatifs à l'introduction de chaque cuve.
+              Relatifs à l'introduction de chaque cuve.
             </span>
           </div>
 
+          <!-- Pré-alerte + seuil de conflit -->
           <div class="form-grid">
             <div class="form-group">
               <label class="form-label" for="field-prealert">
                 Pré-alerte
                 <span class="form-label__unit">secondes avant l'échéance</span>
+                ${tip("preAlertSec")}
               </label>
               <input
                 class="form-input"
@@ -128,6 +180,7 @@ export class SetupView {
               <label class="form-label" for="field-conflict">
                 Seuil de conflit
                 <span class="form-label__unit">secondes</span>
+                ${tip("conflictThresholdSec")}
               </label>
               <input
                 class="form-input"
@@ -138,10 +191,34 @@ export class SetupView {
                 step="1"
                 value="15"
               />
-              <span class="form-hint">
-                Valeur configurable — pas une règle réglementaire universelle.
-              </span>
             </div>
+          </div>
+
+          <!-- Délai "manquée" -->
+          <div class="form-group">
+            <label class="form-label" for="field-missed">
+              Délai avant marquage « manquée »
+              <span class="form-label__unit">secondes après l'échéance</span>
+              ${tip("missedThresholdSec")}
+            </label>
+            <div class="inline-field-row">
+              <input
+                class="form-input"
+                type="number"
+                id="field-missed"
+                name="missedThresholdSec"
+                min="10"
+                step="10"
+                value="120"
+              />
+              <label class="disable-toggle" for="cb-disable-missed">
+                <input type="checkbox" id="cb-disable-missed" />
+                Désactiver
+              </label>
+            </div>
+            <span class="form-hint" id="missed-hint">
+              Une action non confirmée 120 s après son échéance sera marquée automatiquement.
+            </span>
           </div>
 
           <div id="setup-error" class="form-error hidden"></div>
@@ -166,9 +243,26 @@ export class SetupView {
       this.handleSubmit(form);
     });
 
-    // Validation inline à la perte de focus
-    form.querySelectorAll<HTMLInputElement>(".form-input").forEach((input) => {
-      input.addEventListener("blur", () => this.clearFieldError(input));
+    // --- Toggle "Désactiver le délai manquée" ---
+    const cbDisable = form.querySelector<HTMLInputElement>("#cb-disable-missed");
+    const inputMissed = form.querySelector<HTMLInputElement>("#field-missed");
+    const hintMissed = form.querySelector<HTMLElement>("#missed-hint");
+
+    cbDisable?.addEventListener("change", () => {
+      const disabled = cbDisable.checked;
+      if (inputMissed) inputMissed.disabled = disabled;
+      if (hintMissed) {
+        hintMissed.textContent = disabled
+          ? "Le marquage automatique est désactivé — les actions non confirmées restent en attente."
+          : `Une action non confirmée ${inputMissed?.value ?? "120"} s après son échéance sera marquée automatiquement.`;
+      }
+    });
+
+    // Mise à jour du hint quand la valeur change
+    inputMissed?.addEventListener("input", () => {
+      if (hintMissed && !cbDisable?.checked) {
+        hintMissed.textContent = `Une action non confirmée ${inputMissed.value} s après son échéance sera marquée automatiquement.`;
+      }
     });
   }
 
@@ -176,7 +270,6 @@ export class SetupView {
     const config = this.parseForm(form);
     if (!config) return;
 
-    // Valider via le moteur M1 (lève ConfigValidationError si invalide)
     try {
       generateTimeline(config);
     } catch (err) {
@@ -242,6 +335,23 @@ export class SetupView {
       return null;
     }
 
+    // --- missedThresholdSec ---
+    const cbDisable = form.querySelector<HTMLInputElement>("#cb-disable-missed");
+    let missedThresholdSec: number | null;
+
+    if (cbDisable?.checked) {
+      missedThresholdSec = null; // désactivé
+    } else {
+      const rawMissed = parseInt(data.get("missedThresholdSec") as string, 10);
+      if (!Number.isFinite(rawMissed) || rawMissed <= 0) {
+        this.showError(
+          "Le délai avant « manquée » doit être un entier > 0 secondes, ou désactivé."
+        );
+        return null;
+      }
+      missedThresholdSec = rawMissed;
+    }
+
     return {
       id,
       vesselCount: vesselCountRaw,
@@ -249,13 +359,10 @@ export class SetupView {
       samplingTimesMin,
       preAlertSec,
       conflictThresholdSec,
+      missedThresholdSec,
     };
   }
 
-  /**
-   * Parse une chaîne de temps séparés par virgules/espaces.
-   * Retourne null si un élément est invalide.
-   */
   private parseSamplingTimes(raw: string): number[] | null {
     const parts = raw.split(/[,\s;]+/).filter((s) => s.trim() !== "");
     if (parts.length === 0) return null;
@@ -276,11 +383,6 @@ export class SetupView {
   }
 
   private clearError(): void {
-    const el = this.container?.querySelector<HTMLElement>("#setup-error");
-    el?.classList.add("hidden");
-  }
-
-  private clearFieldError(input: HTMLInputElement): void {
-    input.classList.remove("form-input--error");
+    this.container?.querySelector<HTMLElement>("#setup-error")?.classList.add("hidden");
   }
 }

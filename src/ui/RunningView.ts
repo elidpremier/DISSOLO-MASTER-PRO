@@ -40,7 +40,11 @@ export class RunningView {
     private readonly onComplete: (records: ActionEvent[]) => void
   ) {
     // config.preAlertSec est transmis au moteur
-    this.engine = new TimerEngine(config.preAlertSec);
+    // config.missedThresholdSec : undefined → défaut moteur 120 s, null → désactivé
+    this.engine = new TimerEngine(
+      config.preAlertSec,
+      config.missedThresholdSec !== undefined ? config.missedThresholdSec : 120
+    );
   }
 
   mount(root: HTMLElement): void {

@@ -74,6 +74,14 @@ export interface TrialConfig {
    * Ce seuil est configurable ; il ne constitue pas une règle réglementaire.
    */
   conflictThresholdSec: number;
+
+  /**
+   * Délai en secondes après l'échéance sans confirmation au-delà duquel
+   * l'action est marquée automatiquement comme "missed".
+   * null = désactivé (jamais marqué automatiquement).
+   * Champ optionnel — défaut moteur : 120 s.
+   */
+  missedThresholdSec?: number | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -39,9 +39,6 @@ export type TimerListener = (event: TimerEngineEvent) => void;
 /** Seuil au-delà duquel un intervalle entre deux frames est signalé comme retard. */
 const WAKE_DELAY_THRESHOLD_MS = 500;
 
-/** Délai après l'échéance sans confirmation → action marquée "missed". */
-const MISSED_THRESHOLD_MS = 30_000;
-
 // ---------------------------------------------------------------------------
 // Classe TimerEngine
 // ---------------------------------------------------------------------------
@@ -59,6 +56,12 @@ export class TimerEngine {
   /** Durée de la pré-alerte en ms. */
   private readonly preAlertMs: number;
 
+  /**
+   * Délai après l'échéance sans confirmation → marquage "missed".
+   * null = fonctionnalité désactivée.
+   */
+  private readonly missedThresholdMs: number | null;
+
   /** Enregistrements de toutes les actions (mutable en cours d'essai). */
   private records: ActionEvent[] = [];
 
@@ -68,8 +71,17 @@ export class TimerEngine {
   /** Vrai si l'événement "allComplete" a déjà été émis. */
   private completionEmitted: boolean = false;
 
-  constructor(preAlertSec: number) {
+  /**
+   * @param preAlertSec       Durée de pré-alerte en secondes avant l'échéance.
+   * @param missedThresholdSec Délai en secondes après l'échéance sans confirmation
+   *                           avant marquage automatique « manquée ».
+   *                           null = jamais marquer automatiquement.
+   *                           Défaut : 120 s.
+   */
+  constructor(preAlertSec: number, missedThresholdSec: number | null = 120) {
     this.preAlertMs = preAlertSec * 1000;
+    this.missedThresholdMs =
+      missedThresholdSec !== null ? missedThresholdSec * 1000 : null;
   }
 
   // -------------------------------------------------------------------------
@@ -186,7 +198,6 @@ export class TimerEngine {
 
       const schedMs = record.action.scheduledOffsetMs;
       const preAlertMs = schedMs - this.preAlertMs;
-      const missedMs = schedMs + MISSED_THRESHOLD_MS;
 
       // --- Pré-alerte ---
       if (record.announcedAtPerf === null && elapsedMs >= preAlertMs) {
@@ -207,9 +218,10 @@ export class TimerEngine {
 
       // --- Action manquée ---
       if (
+        this.missedThresholdMs !== null &&
         record.status !== "missed" &&
         record.deadlineReachedAtPerf !== null &&
-        elapsedMs >= missedMs
+        elapsedMs >= schedMs + this.missedThresholdMs
       ) {
         record.status = "missed";
         this.emit({ type: "missed", record });
