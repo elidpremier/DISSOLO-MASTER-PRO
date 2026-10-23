@@ -2,6 +2,7 @@ import { defineConfig } from "vitest/config";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  base: "/DISSOLO-MASTER-PRO/",
   plugins: [
     VitePWA({
       registerType: "autoUpdate",
