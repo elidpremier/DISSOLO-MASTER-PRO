@@ -224,6 +224,14 @@ describe("Données scientifiques M4", () => {
     })).rejects.toBeInstanceOf(TrialStoreError);
   });
 
+  it("rejette un facteur de dilution inférieur à 1", async () => {
+    const storageId = await saveTrial(configRef, recordsRef, startedAt);
+    await expect(saveScientificData(storageId, {
+      correctionConfig: correctionRef,
+      measurements: [{ ...measurementsRef[0], dilutionFactor: 0.5 }],
+    })).rejects.toBeInstanceOf(TrialStoreError);
+  });
+
   it("conserve les révisions scientifiques précédentes", async () => {
     const storageId = await saveTrial(configRef, recordsRef, startedAt);
     await saveScientificData(storageId, { correctionConfig: correctionRef, measurements: measurementsRef });

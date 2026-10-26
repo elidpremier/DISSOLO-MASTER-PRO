@@ -58,6 +58,20 @@ describe("Correction des prélèvements successifs", () => {
     expect(result.dissolvedPercent).toBeCloseTo(78.231, 3);
   });
 
+  it("rejette un facteur de dilution inférieur à 1", () => {
+    expect(() => correctSuccessiveSampling([{ ...measurement("invalid-dilution", 5, 3), dilutionFactor: 0.5 }], correction))
+      .toThrow("facteur multiplicatif supérieur ou égal à 1");
+  });
+
+  it("utilise la teneur par mesure et refuse une incohérence dans une cuve", () => {
+    const first = { ...measurement("amount-1", 5, 10), referenceAmountMg: 200 };
+    const second = { ...measurement("amount-2", 10, 10), referenceAmountMg: 100 };
+    expect(() => correctSuccessiveSampling([first, second], correction))
+      .toThrow("teneur par unité doit être identique");
+    const result = correctSuccessiveSampling([first], correction)[0];
+    expect(result.dissolvedPercent).toBeCloseTo(4.5);
+  });
+
   it("rejette deux temps identiques dans une même cuve", () => {
     expect(() => correctSuccessiveSampling([measurement("a", 5, 1), measurement("b", 5, 2)], correction)).toThrow(ScientificValidationError);
   });

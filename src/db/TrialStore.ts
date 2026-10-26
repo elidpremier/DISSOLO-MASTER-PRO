@@ -418,7 +418,7 @@ function validateScientificData(data: Omit<ScientificDataset, "updatedAt" | "rev
     if (!measurement.id || !Number.isInteger(measurement.vesselId) || measurement.vesselId < 1 ||
       !Number.isFinite(measurement.samplingTimeMin) || measurement.samplingTimeMin <= 0 ||
       !Number.isFinite(measurement.value) || measurement.value < 0 ||
-      !Number.isFinite(measurement.dilutionFactor) || measurement.dilutionFactor <= 0 ||
+      !Number.isFinite(measurement.dilutionFactor) || measurement.dilutionFactor < 1 ||
       (measurement.unit !== "mg/L" && measurement.unit !== "µg/mL") ||
       (measurement.analyticalMethod !== "uv-vis" && measurement.analyticalMethod !== "clhp") ||
       (measurement.quantificationMethod !== undefined && measurement.quantificationMethod !== "concentration" && measurement.quantificationMethod !== "e1-percent") ||

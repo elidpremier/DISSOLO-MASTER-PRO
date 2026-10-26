@@ -102,7 +102,7 @@ export class ScientificDataView {
           ${numberInput("measurement-value", "Résultat : concentration ou absorbance", "", "0.000001", false)}
           ${numberInput("absorbance-reading-1", "Absorbance - lecture 1 (facultative)", "", "0.000001", false)}
           ${numberInput("absorbance-reading-2", "Absorbance - lecture 2 (facultative)", "", "0.000001", false)}
-          ${numberInput("dilution-factor", "Facteur de dilution", 1, "0.000001")}
+          ${numberInput("dilution-factor", "Facteur de dilution (×, ≥ 1)", 1, "0.000001")}
           <label class="form-group"><span class="form-label">Formulation / groupe</span><input id="measurement-formulation" class="form-input" type="text" maxlength="100" required placeholder="Référence ou Essai" /></label>
           ${numberInput("reference-amount", "Teneur en PA par unité (mg)", "", "0.000001")}
           <label class="form-group" style="grid-column:1/-1"><span class="form-label">Annotation (facultative)</span><input id="measurement-annotation" class="form-input" type="text" maxlength="500" /></label>
@@ -191,8 +191,8 @@ export class ScientificDataView {
         absorbanceReading1: read1, absorbanceReading2: read2,
         formulation: get("measurement-formulation").value.trim(), referenceAmountMg: Number(get("reference-amount").value), annotation: get("measurement-annotation").value.trim() || undefined,
       };
-      if (!Number.isInteger(measure.vesselId) || measure.vesselId < 1 || !Number.isFinite(measure.samplingTimeMin) || measure.samplingTimeMin <= 0 || !Number.isFinite(measure.value) || measure.value < 0 || !Number.isFinite(measure.dilutionFactor) || measure.dilutionFactor <= 0 || !measure.formulation || !Number.isFinite(measure.referenceAmountMg) || measure.referenceAmountMg! <= 0) {
-        this.showMessage("Veuillez renseigner des valeurs numériques valides.", false); return;
+      if (!Number.isInteger(measure.vesselId) || measure.vesselId < 1 || !Number.isFinite(measure.samplingTimeMin) || measure.samplingTimeMin <= 0 || !Number.isFinite(measure.value) || measure.value < 0 || !Number.isFinite(measure.dilutionFactor) || measure.dilutionFactor < 1 || !measure.formulation || !Number.isFinite(measure.referenceAmountMg) || measure.referenceAmountMg! <= 0) {
+        this.showMessage("Veuillez renseigner des valeurs valides ; le facteur de dilution doit être supérieur ou égal à 1.", false); return;
       }
       if (measure.quantificationMethod === "e1-percent" && (!Number.isFinite(measure.e1Percent) || measure.e1Percent! <= 0 || !Number.isFinite(measure.pathLengthCm) || measure.pathLengthCm! <= 0)) {
         this.showMessage("La méthode E1% requiert une E1% et un trajet optique strictement positifs.", false); return;
@@ -240,7 +240,7 @@ export class ScientificDataView {
   private readCorrectionConfig(): DissolutionCorrectionConfig {
     const number = (id: string) => Number(this.container?.querySelector<HTMLInputElement>(`#${id}`)?.value);
     return {
-      mediumVolumeMl: number("medium-volume"), sampleVolumeMl: number("sample-volume"), referenceAmountMg: this.correctionConfig.referenceAmountMg,
+      mediumVolumeMl: number("medium-volume"), sampleVolumeMl: number("sample-volume"), referenceAmountMg: this.measurements[0]?.referenceAmountMg ?? this.correctionConfig.referenceAmountMg,
       replacementMode: (this.container?.querySelector<HTMLSelectElement>("#replacement-mode")?.value ?? "full") as DissolutionCorrectionConfig["replacementMode"],
     };
   }

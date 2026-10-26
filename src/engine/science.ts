@@ -73,6 +73,16 @@ export function correctSuccessiveSampling(
   }
 
   const sorted = [...measurements].sort((a, b) => a.samplingTimeMin - b.samplingTimeMin || a.id.localeCompare(b.id));
+  const referenceAmountMg = sorted[0]?.referenceAmountMg ?? config.referenceAmountMg;
+  if (sorted.some((measurement) =>
+    measurement.referenceAmountMg !== undefined &&
+    measurement.referenceAmountMg !== referenceAmountMg
+  )) {
+    throw new ScientificValidationError(
+      "referenceAmountMg",
+      "la teneur par unité doit être identique pour toutes les mesures d'une même cuve."
+    );
+  }
   let previousTime = -Infinity;
   let previousConcentrationSum = 0;
 
@@ -103,7 +113,7 @@ export function correctSuccessiveSampling(
       concentrationMgPerL,
       correctedConcentrationMgPerL,
       cumulativeAmountMg,
-      dissolvedPercent: (cumulativeAmountMg / config.referenceAmountMg) * 100,
+      dissolvedPercent: (cumulativeAmountMg / referenceAmountMg) * 100,
     };
   });
 }
@@ -194,7 +204,9 @@ function validateMeasurement(measurement: RawMeasurement): void {
   }
   assertFiniteStrictlyPositive("samplingTimeMin", measurement.samplingTimeMin);
   assertFinitePositiveOrZero("value", measurement.value);
-  assertFiniteStrictlyPositive("dilutionFactor", measurement.dilutionFactor);
+  if (!Number.isFinite(measurement.dilutionFactor) || measurement.dilutionFactor < 1) {
+    throw new ScientificValidationError("dilutionFactor", "doit être un facteur multiplicatif supérieur ou égal à 1.");
+  }
   if (measurement.quantificationMethod && measurement.quantificationMethod !== "concentration" && measurement.quantificationMethod !== "e1-percent") {
     throw new ScientificValidationError("quantificationMethod", "doit être « concentration » ou « e1-percent ».");
   }

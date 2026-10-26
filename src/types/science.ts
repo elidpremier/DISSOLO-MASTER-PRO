@@ -119,12 +119,31 @@ export interface ProfileComparisonRules {
   id: string;
   version: string;
   minimumPoints: number;
+  minimumUnitsPerFormulation?: number;
+  maximumCoefficientOfVariationPercent?: number;
+}
+
+export type ProfileCheckStatus = "pass" | "fail" | "not-evaluated";
+
+export interface ProfileComparisonCheck {
+  id: string;
+  label: string;
+  status: ProfileCheckStatus;
+  detail: string;
+}
+
+export interface ProfileComparisonContext {
+  referenceUnitCount?: number;
+  testUnitCount?: number;
+  referenceCoefficientOfVariationByTime?: Map<number, number | null>;
+  testCoefficientOfVariationByTime?: Map<number, number | null>;
 }
 
 export interface ProfileComparisonResult {
   rules: ProfileComparisonRules;
   f1: number | null;
   f2: number | null;
+  checks: ProfileComparisonCheck[];
   /** Les motifs empêchent toute conclusion implicite ou réglementaire. */
   notEvaluableReasons: string[];
 }
