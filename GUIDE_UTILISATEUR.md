@@ -1,4 +1,14 @@
-# DissoloMaster Pro - Guide utilisateur
+# DissoloMaster Pro — Guide utilisateur
+
+**Version documentée :** `0.5.0-research`
+**Public :** chercheurs, étudiants et analystes en recherche non libératoire
+**Dernière mise à jour :** 2026-10-26
+
+Voir aussi :
+
+- [README](./README.md)
+- [Modèle scientifique](./docs/MODELE_SCIENTIFIQUE.md)
+- [Données et archives](./docs/DONNEES_ET_ARCHIVES.md)
 
 ## Statut et limites
 
@@ -15,8 +25,13 @@ DissoloMaster Pro est un outil hors ligne pour la recherche universitaire. Il ne
 5. Définissez la méthode une fois : volumes, remplacement, technique et quantification.
 6. Saisissez une mesure par cuve et temps, puis enregistrez. Exportez JSON/CSV et, si besoin, **Rapport / PDF** (boîte d'impression du navigateur).
 7. Renseignez le contexte de recherche (opérateur, produit, lot, méthode, appareil et instrument) avant l'enregistrement.
+8. Complétez la **fiche méthode versionnée** : appareil, géométrie, pH, température, dégazage, filtration et position de prélèvement.
 
 Chaque enregistrement scientifique crée une nouvelle révision et conserve les révisions précédentes dans l'essai. Une modification doit être traitée comme une nouvelle saisie documentée, jamais comme une correction silencieuse.
+
+## Fiche méthode
+
+La fiche méthode accompagne chaque révision scientifique. Les champs obligatoires sont l'identifiant, la version, le type d'appareil, la géométrie, le dégazage, la filtration et la position de prélèvement. Les champs numériques doivent correspondre aux observations ou aux objectifs du protocole réellement appliqué.
 
 ## Installation sur téléphone
 
@@ -39,10 +54,18 @@ En mode E1%, saisissez une absorbance corrigée du blanc, l'E1% applicable et le
 
 L'exemple de méthode comparative ne renseigne que des paramètres opérationnels à vérifier. La longueur d'onde, le blanc, l'E1%, la dilution et les conditions propres au produit doivent toujours être définis pour la méthode réellement appliquée.
 
+## Comparaison f1/f2
+
+L'écran affiche séparément les contrôles d'éligibilité : temps alignés, nombre de points, nombre d'unités, CV et référence exploitable. Un contrôle absent ou non configuré apparaît comme **Non évalué**. Un f1/f2 numérique reste exploratoire et ne constitue pas automatiquement une conclusion de similitude.
+
 ## Reproductibilité
 
 Les mesures brutes ne sont jamais remplacées par les résultats corrigés. Les résultats f1/f2 sont numériques et exploratoires : l'application ne produit pas de conclusion réglementaire automatique.
 
-## Sauvegarde et récupération
+## Sauvegarde, checkpoints et récupération
 
-L'IndexedDB locale n'est pas une archive inviolable. Exportez le JSON complet après chaque essai et conservez-le dans l'emplacement de sauvegarde prévu par le laboratoire. Vérifiez périodiquement qu'un export peut être réimporté sur un autre navigateur. Ne placez jamais de résultats confidentiels dans le dépôt GitHub ou dans les fichiers publiés par GitHub Pages.
+Un checkpoint est enregistré pendant l'essai, après les confirmations et lors des interruptions de visibilité. Un essai peut apparaître comme **En cours — reprise possible** dans l'historique. Une interruption de page peut toutefois empêcher une alerte en temps réel ; les actions dépassées doivent être revues par l'opérateur.
+
+L'IndexedDB locale n'est pas une archive inviolable. Exportez l'archive JSON complète après chaque essai et conservez-la dans l'emplacement de sauvegarde prévu par le laboratoire. L'archive contient un manifeste, les interruptions, les révisions scientifiques et une empreinte SHA-256 lorsque l'export est réalisé depuis l'historique. Vérifiez périodiquement qu'elle peut être réimportée.
+
+Ne placez jamais de résultats confidentiels dans le dépôt GitHub ou dans les fichiers publiés par GitHub Pages.

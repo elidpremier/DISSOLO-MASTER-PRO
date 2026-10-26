@@ -7,6 +7,8 @@
 **Plateforme cible :** Application Web Progressive (PWA) fonctionnant hors ligne  
 **Mode de développement :** Développement personnel assisté par IA, avec validation à chaque jalon
 
+> **État de réalisation :** la version `0.5.0-research` comprend le séquenceur, la persistance par checkpoints, les interruptions, la saisie scientifique, la fiche méthode versionnée, les contrôles f1/f2 conditionnels et les archives JSON vérifiables. Ce document reste le cahier des charges de référence ; les détails opérationnels à jour sont documentés dans le [README](./README.md), le [guide utilisateur](./GUIDE_UTILISATEUR.md) et les documents du répertoire `docs/`.
+
 ---
 
 ## 1. Présentation du projet
