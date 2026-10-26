@@ -148,6 +148,7 @@ export class HistoryView {
             </div>
             <span class="history-card__meta-dot"></span>
             <span style="font-family:monospace;font-size:0.7rem;opacity:0.5">v${t.appVersion}</span>
+            <span class="history-status">${t.status === "in-progress" ? "En cours — reprise possible" : "Terminé"}</span>
           </div>
         </div>
         <div class="history-card__btns">

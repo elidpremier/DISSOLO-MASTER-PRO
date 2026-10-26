@@ -11,6 +11,7 @@ import type { TimelineAction, TrialConfig } from "../types/timeline";
 import type { AudioManager } from "../audio/AudioManager";
 import type { ActionEvent } from "../timer/EventRecord";
 import type { TimerEngineEvent } from "../timer/TimerEngine";
+import type { TrialInterruption } from "../timer/Lifecycle";
 import { TimerEngine } from "../timer/TimerEngine";
 import {
   formatOffsetMs,
@@ -28,6 +29,7 @@ export class RunningView {
   private container: HTMLElement | null = null;
   private engine: TimerEngine;
   private unsubscribe: (() => void) | null = null;
+  private interruptions: TrialInterruption[] = [];
 
   /** Action actuellement affichée dans la zone d'alerte. */
   private alertActionId: string | null = null;
@@ -37,7 +39,8 @@ export class RunningView {
     config: TrialConfig,
     private readonly actions: TimelineAction[],
     private readonly audio: AudioManager,
-    private readonly onComplete: (records: ActionEvent[]) => void
+    private readonly onComplete: (records: ActionEvent[]) => void,
+    private readonly onCheckpoint?: (records: ActionEvent[], interruptions: TrialInterruption[]) => void,
   ) {
     // config.preAlertSec est transmis au moteur
     // config.missedThresholdSec : undefined → défaut moteur 120 s, null → désactivé
@@ -53,6 +56,9 @@ export class RunningView {
     this.container.innerHTML = this.renderHTML();
     root.appendChild(this.container);
     this.bindStaticEvents();
+    document.addEventListener("visibilitychange", this.handleVisibilityChange);
+    window.addEventListener("pagehide", this.handlePageHide);
+    window.addEventListener("pageshow", this.handlePageShow);
 
     // Démarrage du moteur et abonnement aux événements
     this.unsubscribe = this.engine.subscribe(this.onTimerEvent);
@@ -63,6 +69,9 @@ export class RunningView {
     this.engine.stop();
     this.unsubscribe?.();
     this.unsubscribe = null;
+    document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+    window.removeEventListener("pagehide", this.handlePageHide);
+    window.removeEventListener("pageshow", this.handlePageShow);
     this.container?.remove();
     this.container = null;
   }
@@ -258,6 +267,7 @@ export class RunningView {
 
   // --- Confirmation ---
   private onConfirmed(record: ActionEvent): void {
+    this.onCheckpoint?.(this.engine.getRecords(), this.interruptions);
     this.updateRowStatus(record.action.id, "confirmed");
     this.hideRowConfirmButton(record.action.id);
     const devEl = this.container?.querySelector<HTMLElement>(
@@ -267,11 +277,49 @@ export class RunningView {
       devEl.textContent = formatDeviation(record.deviationMs);
       devEl.className = `action-row__deviation ${deviationClass(record.deviationMs)}`;
     }
+
     // Si c'était l'action en alerte, retour idle
     if (this.alertActionId === record.action.id) {
       this.clearAlertZone();
     }
     this.updateProgress();
+  }
+
+  private handleVisibilityChange = (): void => {
+    if (document.visibilityState === "hidden") {
+      this.beginInterruption("hidden");
+    } else {
+      this.endInterruption();
+    }
+  };
+
+  private handlePageHide = (): void => {
+    this.beginInterruption("pagehide");
+  };
+
+  private handlePageShow = (): void => {
+    this.endInterruption();
+  };
+
+  private beginInterruption(reason: TrialInterruption["reason"]): void {
+    const current = this.interruptions.at(-1);
+    if (current && current.endedAt === null) return;
+    this.interruptions.push({
+      id: typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `interruption-${Date.now()}`,
+      reason,
+      startedAt: new Date().toISOString(),
+      endedAt: null,
+    });
+    this.onCheckpoint?.(this.engine.getRecords(), this.interruptions);
+  }
+
+  private endInterruption(): void {
+    const current = this.interruptions.at(-1);
+    if (!current || current.endedAt !== null) return;
+    current.endedAt = new Date().toISOString();
+    this.onCheckpoint?.(this.engine.getRecords(), this.interruptions);
   }
 
   // --- Action manquée ---

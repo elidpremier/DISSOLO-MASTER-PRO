@@ -11,6 +11,8 @@ import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   saveTrial,
+  saveTrialCheckpoint,
+  finalizeTrial,
   listTrials,
   getTrial,
   deleteTrial,
@@ -113,11 +115,29 @@ describe("Sauvegarde et récupération d'un essai", () => {
   it("getTrial stocke l'appVersion", async () => {
     const storageId = await saveTrial(configRef, recordsRef, startedAt);
     const trial = await getTrial(storageId);
-    expect(trial.appVersion).toMatch(/M4/);
+    expect(trial.appVersion).toMatch(/0\.5\.0/);
   });
 
   it("getTrial lève TrialStoreError si le storageId est inconnu", async () => {
     await expect(getTrial("id-inexistant")).rejects.toBeInstanceOf(TrialStoreError);
+  });
+
+  it("crée un checkpoint en cours avec un identifiant unique", async () => {
+    const first = await saveTrialCheckpoint(configRef, [], startedAt);
+    const second = await saveTrialCheckpoint(configRef, [], startedAt);
+    expect(first).not.toBe(second);
+    expect((await getTrial(first)).status).toBe("in-progress");
+    expect((await getTrial(first)).completedAt).toBeNull();
+  });
+
+  it("finalise le checkpoint sans créer un second essai", async () => {
+    const storageId = await saveTrialCheckpoint(configRef, [], startedAt);
+    await finalizeTrial(storageId, recordsRef);
+    const trial = await getTrial(storageId);
+    expect(trial.status).toBe("completed");
+    expect(trial.completedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(trial.records).toHaveLength(recordsRef.length);
+    expect(await countTrials()).toBe(1);
   });
 });
 

@@ -17,15 +17,17 @@ import { openDB, type IDBPDatabase } from "idb";
 import type { TrialConfig } from "../types/timeline";
 import type { ActionEvent } from "../timer/EventRecord";
 import type { LaboratoryMetadata, ScientificDataset } from "../types/science";
+import type { TrialInterruption } from "../timer/Lifecycle";
 
 // ---------------------------------------------------------------------------
 // Constantes
 // ---------------------------------------------------------------------------
 
 const DB_NAME = "dissolo-master-pro";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_TRIALS = "trials";
-const APP_VERSION = "0.4.0-M4";
+export const APP_VERSION = "0.5.0-research";
+export const STORAGE_SCHEMA_VERSION = 3;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -37,7 +39,7 @@ const APP_VERSION = "0.4.0-M4";
  * pour la reproductibilité (section 8).
  */
 export interface StoredTrial {
-  /** Clé primaire unique : "{config.id}_{startedAt}" */
+  /** Clé primaire UUID indépendante de l'identifiant lisible de l'essai. */
   storageId: string;
   /** Configuration de l'essai (immuable, copiée à la sauvegarde). */
   config: TrialConfig;
@@ -45,8 +47,14 @@ export interface StoredTrial {
   records: ActionEvent[];
   /** Horodatage ISO 8601 du démarrage de l'essai. */
   startedAt: string;
-  /** Horodatage ISO 8601 de la fin/sauvegarde de l'essai. */
-  completedAt: string;
+  /** Horodatage ISO 8601 de la fin/sauvegarde de l'essai. Null si en cours. */
+  completedAt: string | null;
+  /** Etat de persistance du run. */
+  status: "in-progress" | "completed";
+  /** Dernier checkpoint confirmé en base. */
+  lastCheckpointAt: string;
+  /** Interruptions observées pendant le run. */
+  interruptions: TrialInterruption[];
   /** Version de l'application pour la traçabilité et la reproductibilité. */
   appVersion: string;
   /** Mesures brutes et paramètres M4 ; absent pour les essais historiques. */
@@ -64,6 +72,7 @@ export interface TrialSummary {
   confirmedActions: number;
   missedActions: number;
   appVersion: string;
+  status: StoredTrial["status"];
 }
 
 // ---------------------------------------------------------------------------
@@ -106,16 +115,6 @@ function getDb(): Promise<IDBPDatabase> {
 // ---------------------------------------------------------------------------
 
 /**
- * Construit un identifiant unique de stockage.
- * Format : "{config.id}_{timestamp ISO compressé}"
- */
-function buildStorageId(configId: string, startedAt: string): string {
-  // Remplacer les caractères interdits dans les clés IDB par "-"
-  const ts = startedAt.replace(/[:.]/g, "-");
-  return `${configId}_${ts}`;
-}
-
-/**
  * Sauvegarde un essai terminé dans IndexedDB.
  * @returns Le storageId de l'enregistrement créé.
  * @throws TrialStoreError si la base est indisponible ou le quota dépassé.
@@ -125,25 +124,80 @@ export async function saveTrial(
   records: ActionEvent[],
   startedAt: string
 ): Promise<string> {
-  const completedAt = new Date().toISOString();
-  const storageId = buildStorageId(config.id, startedAt);
+  const storageId = await saveTrialCheckpoint(config, records, startedAt);
+  try {
+    const db = await getDb();
+    const trial = await db.get(STORE_TRIALS, storageId) as StoredTrial | undefined;
+    if (!trial) throw new TrialStoreError("Essai introuvable après le checkpoint.");
+    await db.put(STORE_TRIALS, {
+      ...trial,
+      status: "completed",
+      completedAt: new Date().toISOString(),
+      lastCheckpointAt: new Date().toISOString(),
+    });
+    return storageId;
+  } catch (err) {
+    if (err instanceof TrialStoreError) throw err;
+    throw new TrialStoreError("Échec de la sauvegarde de l'essai.", err);
+  }
+}
 
+/** Enregistre un run en cours sans le marquer comme terminé. */
+export async function saveTrialCheckpoint(
+  config: TrialConfig,
+  records: ActionEvent[],
+  startedAt: string,
+  interruptions: TrialInterruption[] = [],
+  storageId?: string,
+): Promise<string> {
+  const now = new Date().toISOString();
+  const id = storageId ?? createStorageId();
   const trial: StoredTrial = {
-    storageId,
-    config,
-    records,
+    storageId: id,
+    config: structuredClone(config),
+    records: structuredClone(records),
     startedAt,
-    completedAt,
+    completedAt: null,
+    status: "in-progress",
+    lastCheckpointAt: now,
+    interruptions: structuredClone(interruptions),
     appVersion: APP_VERSION,
   };
 
   try {
     const db = await getDb();
     await db.put(STORE_TRIALS, trial);
-    return storageId;
+    return id;
   } catch (err) {
-    throw new TrialStoreError("Échec de la sauvegarde de l'essai.", err);
+    throw new TrialStoreError("Échec du checkpoint de l'essai.", err);
   }
+}
+
+/** Finalise un checkpoint existant sans créer une nouvelle copie du run. */
+export async function finalizeTrial(storageId: string, records: ActionEvent[]): Promise<void> {
+  try {
+    const db = await getDb();
+    const trial = await db.get(STORE_TRIALS, storageId) as StoredTrial | undefined;
+    if (!trial) throw new TrialStoreError(`Essai introuvable : ${storageId}`);
+    const completedAt = new Date().toISOString();
+    await db.put(STORE_TRIALS, {
+      ...trial,
+      records: structuredClone(records),
+      status: "completed",
+      completedAt,
+      lastCheckpointAt: completedAt,
+    });
+  } catch (err) {
+    if (err instanceof TrialStoreError) throw err;
+    throw new TrialStoreError("Échec de la finalisation de l'essai.", err);
+  }
+}
+
+function createStorageId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `trial-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 /**
@@ -200,8 +254,8 @@ export async function countTrials(): Promise<number> {
   try {
     const db = await getDb();
     return await db.count(STORE_TRIALS);
-  } catch {
-    return 0;
+  } catch (err) {
+    throw new TrialStoreError("Échec du comptage des essais.", err);
   }
 }
 
@@ -286,11 +340,12 @@ function toSummary(t: StoredTrial): TrialSummary {
     storageId: t.storageId,
     trialId: t.config.id,
     startedAt: t.startedAt,
-    completedAt: t.completedAt,
+    completedAt: t.completedAt ?? t.lastCheckpointAt,
     totalActions: t.records.length,
     confirmedActions: confirmed,
     missedActions: missed,
     appVersion: t.appVersion,
+    status: t.status ?? (t.completedAt ? "completed" : "in-progress"),
   };
 }
 

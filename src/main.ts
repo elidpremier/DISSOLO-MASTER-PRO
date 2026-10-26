@@ -29,7 +29,8 @@ import { RunningView } from "./ui/RunningView";
 import { ResultsView } from "./ui/ResultsView";
 import { HistoryView } from "./ui/HistoryView";
 import { ScientificDataView } from "./ui/ScientificDataView";
-import { saveTrial, TrialStoreError } from "./db/TrialStore";
+import { saveTrial, saveTrialCheckpoint, finalizeTrial, TrialStoreError } from "./db/TrialStore";
+import type { TrialInterruption } from "./timer/Lifecycle";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -58,6 +59,8 @@ class App {
 
   /** T0 de l'essai en cours (ISO 8601) — nécessaire pour la sauvegarde */
   private currentTrialStartedAt: string = "";
+  private currentTrialStorageId: string | null = null;
+  private checkpointChain: Promise<void> = Promise.resolve();
 
   /** Événement d'installation PWA capturé */
   private installPromptEvent: Event | null = null;
@@ -292,13 +295,17 @@ class App {
     this.clearView();
     this.updateHeader("running", config.id);
     this.currentTrialStartedAt = new Date().toISOString();
+    this.currentTrialStorageId = null;
+    this.checkpointChain = Promise.resolve();
 
     const view = new RunningView(
       config, actions, this.audio,
-      (records) => this.showResults(config, records)
+      (records) => this.showResults(config, records),
+      (records, interruptions) => this.queueCheckpoint(config, records, interruptions),
     );
     view.mount(this.mainEl);
     this.currentView = view;
+    this.queueCheckpoint(config, [], []);
   }
 
   private async showResults(config: TrialConfig, records: ActionEvent[]): Promise<void> {
@@ -360,7 +367,12 @@ class App {
 
   private async autoSave(config: TrialConfig, records: ActionEvent[]): Promise<void> {
     try {
-      await saveTrial(config, records, this.currentTrialStartedAt);
+      await this.checkpointChain;
+      if (this.currentTrialStorageId) {
+        await finalizeTrial(this.currentTrialStorageId, records);
+      } else {
+        await saveTrial(config, records, this.currentTrialStartedAt);
+      }
       this.flashSaveIndicator("✓ Sauvegardé");
     } catch (err) {
       if (err instanceof TrialStoreError) {
@@ -368,6 +380,30 @@ class App {
         this.flashSaveIndicator("⚠ Non sauvegardé", true);
       }
     }
+  }
+
+  private queueCheckpoint(
+    config: TrialConfig,
+    records: ActionEvent[],
+    interruptions: TrialInterruption[],
+  ): void {
+    this.checkpointChain = this.checkpointChain.then(async () => {
+      try {
+          this.currentTrialStorageId = await saveTrialCheckpoint(
+            config,
+            records,
+            this.currentTrialStartedAt,
+            interruptions,
+            this.currentTrialStorageId ?? undefined,
+          );
+          this.flashSaveIndicator("✓ Sauvegarde");
+      } catch (err) {
+          if (err instanceof TrialStoreError) {
+            console.warn("[App] Checkpoint échoué :", err.message);
+            this.flashSaveIndicator("⚠ Non sauvegardé", true);
+          }
+      }
+    });
   }
 
   private flashSaveIndicator(msg: string, warn = false): void {
