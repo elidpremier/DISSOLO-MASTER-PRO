@@ -3,7 +3,7 @@
 import type { StoredTrial } from "../db/TrialStore";
 import { saveScientificData } from "../db/TrialStore";
 import { calculateDescriptiveStatistics, compareProfiles, correctSuccessiveSampling } from "../engine/science";
-import type { AnalyticalMethodConfig, DissolutionCorrectionConfig, LaboratoryMetadata, RawMeasurement } from "../types/science";
+import type { AnalyticalMethodConfig, DissolutionCorrectionConfig, DissolutionMethodProfile, LaboratoryMetadata, RawMeasurement } from "../types/science";
 import { printScientificReport } from "../utils/report";
 
 export class ScientificDataView {
@@ -18,6 +18,7 @@ export class ScientificDataView {
   private wavelengthNm: number | undefined;
   private blankDescription: string;
   private laboratoryMetadata: LaboratoryMetadata;
+  private methodProfile: DissolutionMethodProfile;
 
   constructor(private readonly trial: StoredTrial, private readonly onBack: () => void) {
     this.measurements = [...(trial.scientificData?.measurements ?? [])];
@@ -36,6 +37,15 @@ export class ScientificDataView {
     this.laboratoryMetadata = trial.scientificData?.laboratoryMetadata ?? {
       operatorId: "", productName: "", batchId: "", dosageForm: "", methodReference: "", methodVersion: "",
       apparatusId: "", instrumentId: "", mediumDescription: "",
+    };
+    this.methodProfile = trial.scientificData?.methodProfile ?? {
+      methodId: "research-method",
+      version: "1.0.0",
+      apparatusType: "",
+      geometry: "",
+      deaeration: "",
+      filtration: "",
+      samplingPosition: "",
     };
   }
 
@@ -75,6 +85,26 @@ export class ScientificDataView {
           ${numberInput("path-length", "Trajet optique (cm, si spectro)", this.pathLengthCm, "0.001")}
           ${numberInput("wavelength", "Longueur d'onde (nm)", this.wavelengthNm ?? "", "0.1", false)}
           ${textInput("blank-description", "Blanc analytique", this.blankDescription, false)}
+        </div>
+        <div class="card" style="margin-bottom:var(--s5)">
+          <div class="card__title">Fiche méthode versionnée</div>
+          <div class="form-grid">
+            ${textInput("method-id", "Identifiant méthode", this.methodProfile.methodId, true)}
+            ${textInput("method-profile-version", "Version de la fiche", this.methodProfile.version, true)}
+            ${textInput("apparatus-type", "Type d'appareil", this.methodProfile.apparatusType, true)}
+            ${textInput("apparatus-geometry", "Géométrie", this.methodProfile.geometry, true)}
+            ${numberInput("medium-ph", "pH du milieu", this.methodProfile.mediumPh ?? "", "0.001", false)}
+            ${numberInput("target-temperature", "Température cible (°C)", this.methodProfile.targetTemperatureC ?? "", "0.01", false)}
+            ${numberInput("observed-temperature", "Température observée (°C)", this.methodProfile.observedTemperatureC ?? "", "0.01", false)}
+            ${numberInput("method-rotation", "Rotation méthode (tr/min)", this.methodProfile.rotationRpm ?? "", "0.01", false)}
+            ${textInput("deaeration", "Dégazage", this.methodProfile.deaeration, true)}
+            ${textInput("filtration", "Filtration", this.methodProfile.filtration, true)}
+            ${textInput("sampling-position", "Position de prélèvement", this.methodProfile.samplingPosition, true)}
+            ${numberInput("replacement-volume", "Volume remplacé (mL)", this.methodProfile.replacementVolumeMl ?? "", "0.001", false)}
+            ${textInput("standard-id", "Identifiant standard", this.methodProfile.standardId ?? "", false)}
+            ${textInput("method-notes", "Notes méthode", this.methodProfile.notes ?? "", false)}
+          </div>
+          <p class="storage-note">Cette fiche est copiée dans chaque révision scientifique et ne doit pas être modifiée pour réinterpréter une mesure existante.</p>
         </div>
         <p class="storage-note">E1% et trajet optique sont des paramètres analytiques. Ils sont copiés dans chaque mesure lors de sa saisie pour conserver le calcul reproductible.</p>
       </div>
@@ -212,6 +242,7 @@ export class ScientificDataView {
       const get = (id: string) => this.container!.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`)!;
       this.correctionConfig = this.readCorrectionConfig();
       this.readMethodConfig();
+      this.readMethodProfile();
       const read1 = optionalNumber(get("absorbance-reading-1").value);
       const read2 = optionalNumber(get("absorbance-reading-2").value);
       const suppliedValue = optionalNumber(get("measurement-value").value);
@@ -250,18 +281,18 @@ export class ScientificDataView {
   }
 
   private async save(): Promise<void> {
-    this.correctionConfig = this.readCorrectionConfig(); this.readMethodConfig();
+    this.correctionConfig = this.readCorrectionConfig(); this.readMethodConfig(); this.readMethodProfile();
     this.laboratoryMetadata = this.readLaboratoryMetadata();
     try {
       // Validation complète incluse dans la sauvegarde ; elle ne touche pas aux événements de l'essai.
-      await saveScientificData(this.trial.storageId, { correctionConfig: this.correctionConfig, methodConfig: this.currentMethodConfig(), laboratoryMetadata: this.laboratoryMetadata, measurements: this.measurements });
+      await saveScientificData(this.trial.storageId, { correctionConfig: this.correctionConfig, methodProfile: this.methodProfile, methodConfig: this.currentMethodConfig(), laboratoryMetadata: this.laboratoryMetadata, measurements: this.measurements });
       this.render(); this.showMessage("✓ Données scientifiques enregistrées.", true);
     } catch (error) { this.showMessage(error instanceof Error ? error.message : "Échec de l'enregistrement.", false); }
   }
 
   private printReport(): void {
-    this.correctionConfig = this.readCorrectionConfig(); this.readMethodConfig();
-    printScientificReport({ ...this.trial, scientificData: { correctionConfig: this.correctionConfig, methodConfig: this.currentMethodConfig(), laboratoryMetadata: this.laboratoryMetadata, measurements: this.measurements, updatedAt: new Date().toISOString(), revision: this.trial.scientificData?.revision ?? 0 } });
+    this.correctionConfig = this.readCorrectionConfig(); this.readMethodConfig(); this.readMethodProfile();
+    printScientificReport({ ...this.trial, scientificData: { correctionConfig: this.correctionConfig, methodProfile: this.methodProfile, methodConfig: this.currentMethodConfig(), laboratoryMetadata: this.laboratoryMetadata, measurements: this.measurements, updatedAt: new Date().toISOString(), revision: this.trial.scientificData?.revision ?? 0 } });
   }
 
   private showMessage(message: string, ok: boolean): void {
@@ -287,6 +318,27 @@ export class ScientificDataView {
     this.blankDescription = query<HTMLInputElement>("blank-description")?.value.trim() ?? "";
     this.analyticalMethod = (query<HTMLSelectElement>("method-analytical")?.value ?? "uv-vis") as RawMeasurement["analyticalMethod"];
     this.concentrationUnit = (query<HTMLSelectElement>("method-unit")?.value ?? "mg/L") as RawMeasurement["unit"];
+  }
+
+  private readMethodProfile(): void {
+    const text = (id: string): string => this.container?.querySelector<HTMLInputElement>(`#${id}`)?.value.trim() ?? "";
+    const number = (id: string): number | undefined => optionalNumber(this.container?.querySelector<HTMLInputElement>(`#${id}`)?.value ?? "");
+    this.methodProfile = {
+      methodId: text("method-id"),
+      version: text("method-profile-version"),
+      apparatusType: text("apparatus-type"),
+      geometry: text("apparatus-geometry"),
+      mediumPh: number("medium-ph"),
+      targetTemperatureC: number("target-temperature"),
+      observedTemperatureC: number("observed-temperature"),
+      rotationRpm: number("method-rotation"),
+      deaeration: text("deaeration"),
+      filtration: text("filtration"),
+      samplingPosition: text("sampling-position"),
+      replacementVolumeMl: number("replacement-volume"),
+      standardId: text("standard-id") || undefined,
+      notes: text("method-notes") || undefined,
+    };
   }
 
   private readLaboratoryMetadata(): LaboratoryMetadata {

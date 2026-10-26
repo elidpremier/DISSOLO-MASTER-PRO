@@ -232,6 +232,44 @@ describe("Données scientifiques M4", () => {
     })).rejects.toBeInstanceOf(TrialStoreError);
   });
 
+  it("conserve une fiche méthode versionnée dans la révision", async () => {
+    const storageId = await saveTrial(configRef, recordsRef, startedAt);
+    await saveScientificData(storageId, {
+      correctionConfig: correctionRef,
+      methodProfile: {
+        methodId: "USP-711",
+        version: "2026.1",
+        apparatusType: "Appareil 2",
+        geometry: "Palette",
+        deaeration: "Oui",
+        filtration: "0,45 µm",
+        samplingPosition: "Zone médiane",
+        mediumPh: 6.8,
+      },
+      measurements: measurementsRef,
+    });
+    const trial = await getTrial(storageId);
+    expect(trial.scientificData?.methodProfile?.version).toBe("2026.1");
+    expect(trial.scientificRevisions?.[0]?.methodProfile?.samplingPosition).toBe("Zone médiane");
+  });
+
+  it("rejette une fiche méthode sans identifiant ou version", async () => {
+    const storageId = await saveTrial(configRef, recordsRef, startedAt);
+    await expect(saveScientificData(storageId, {
+      correctionConfig: correctionRef,
+      methodProfile: {
+        methodId: "",
+        version: "",
+        apparatusType: "Appareil 2",
+        geometry: "Palette",
+        deaeration: "Oui",
+        filtration: "0,45 µm",
+        samplingPosition: "Zone médiane",
+      },
+      measurements: measurementsRef,
+    })).rejects.toBeInstanceOf(TrialStoreError);
+  });
+
   it("conserve les révisions scientifiques précédentes", async () => {
     const storageId = await saveTrial(configRef, recordsRef, startedAt);
     await saveScientificData(storageId, { correctionConfig: correctionRef, measurements: measurementsRef });

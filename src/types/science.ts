@@ -43,6 +43,24 @@ export interface AnalyticalMethodConfig {
   targetAbsorbanceMax?: number;
 }
 
+/** Fiche expérimentale versionnée, figée avec chaque révision scientifique. */
+export interface DissolutionMethodProfile {
+  methodId: string;
+  version: string;
+  apparatusType: string;
+  geometry: string;
+  mediumPh?: number;
+  targetTemperatureC?: number;
+  observedTemperatureC?: number;
+  rotationRpm?: number;
+  deaeration: string;
+  filtration: string;
+  samplingPosition: string;
+  replacementVolumeMl?: number;
+  standardId?: string;
+  notes?: string;
+}
+
 /** Mode de remplacement après chaque prélèvement. */
 export type ReplacementMode = "full" | "none";
 
@@ -84,6 +102,7 @@ export interface DissolutionCorrectionConfig {
 /** Ensemble de données M4 lié à un essai, conservé à part de la chronologie. */
 export interface ScientificDataset {
   correctionConfig: DissolutionCorrectionConfig;
+  methodProfile?: DissolutionMethodProfile;
   methodConfig?: AnalyticalMethodConfig;
   laboratoryMetadata: LaboratoryMetadata;
   measurements: RawMeasurement[];

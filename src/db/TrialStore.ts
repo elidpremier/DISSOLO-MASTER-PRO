@@ -16,7 +16,7 @@
 import { openDB, type IDBPDatabase } from "idb";
 import type { TrialConfig } from "../types/timeline";
 import type { ActionEvent } from "../timer/EventRecord";
-import type { LaboratoryMetadata, ScientificDataset } from "../types/science";
+import type { DissolutionMethodProfile, LaboratoryMetadata, ScientificDataset } from "../types/science";
 import type { TrialInterruption } from "../timer/Lifecycle";
 
 // ---------------------------------------------------------------------------
@@ -276,6 +276,7 @@ export async function saveScientificData(
     const laboratoryMetadata = data.laboratoryMetadata ?? defaultLaboratoryMetadata();
     const scientificData: ScientificDataset = {
       correctionConfig: structuredClone(data.correctionConfig),
+      ...(data.methodProfile ? { methodProfile: structuredClone(data.methodProfile) } : {}),
       ...(data.methodConfig ? { methodConfig: structuredClone(data.methodConfig) } : {}),
       laboratoryMetadata: structuredClone(laboratoryMetadata),
       measurements: structuredClone(data.measurements),
@@ -401,6 +402,16 @@ function validateScientificData(data: Omit<ScientificDataset, "updatedAt" | "rev
   }
   if (cfg.replacementMode !== "full" && cfg.replacementMode !== "none") {
     throw new TrialStoreError("Mode de remplacement invalide.");
+  }
+  const profile = data.methodProfile as DissolutionMethodProfile | undefined;
+  if (profile) {
+    for (const [field, value] of Object.entries(profile)) {
+      if (["mediumPh", "targetTemperatureC", "observedTemperatureC", "rotationRpm", "replacementVolumeMl"].includes(field)) continue;
+      if (typeof value !== "string" || !value.trim()) throw new TrialStoreError(`Fiche méthode incomplète : ${field}.`);
+    }
+    for (const value of [profile.mediumPh, profile.targetTemperatureC, profile.observedTemperatureC, profile.rotationRpm, profile.replacementVolumeMl]) {
+      if (value !== undefined && (!Number.isFinite(value) || value <= 0)) throw new TrialStoreError("Paramètre numérique de méthode invalide.");
+    }
   }
   const method = data.methodConfig;
   if (method && (
