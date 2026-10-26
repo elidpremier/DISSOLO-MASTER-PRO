@@ -15,6 +15,8 @@ export class ScientificDataView {
   private pathLengthCm: number;
   private analyticalMethod: RawMeasurement["analyticalMethod"];
   private concentrationUnit: RawMeasurement["unit"];
+  private wavelengthNm: number | undefined;
+  private blankDescription: string;
   private laboratoryMetadata: LaboratoryMetadata;
 
   constructor(private readonly trial: StoredTrial, private readonly onBack: () => void) {
@@ -29,6 +31,8 @@ export class ScientificDataView {
     this.pathLengthCm = methodConfig?.pathLengthCm ?? firstMeasurement?.pathLengthCm ?? 1;
     this.analyticalMethod = methodConfig?.analyticalMethod ?? firstMeasurement?.analyticalMethod ?? "uv-vis";
     this.concentrationUnit = methodConfig?.concentrationUnit ?? firstMeasurement?.unit ?? "mg/L";
+    this.wavelengthNm = methodConfig?.wavelengthNm;
+    this.blankDescription = methodConfig?.blankDescription ?? "";
     this.laboratoryMetadata = trial.scientificData?.laboratoryMetadata ?? {
       operatorId: "", productName: "", batchId: "", dosageForm: "", methodReference: "", methodVersion: "",
       apparatusId: "", instrumentId: "", mediumDescription: "",
@@ -52,6 +56,7 @@ export class ScientificDataView {
         <p class="results-header__subtitle">${escapeHtml(this.trial.config.id)} — mesures brutes et calculs exploratoires</p>
       </div>
       <div class="conflict-item" style="margin-bottom:var(--s5)">⚠ Outil de recherche et de référence uniquement. Ne remplace ni la monographie officielle, ni un SOP, ni un LIMS, et ne produit pas de décision réglementaire.</div>
+      <div class="card protocol-preset" style="margin-bottom:var(--s5)"><div><div class="card__title">Exemple de méthode comparative</div><p class="text-muted">Pré-remplit une trame modifiable : 900 mL, prélèvement/remplacement 10 mL, UV-Vis et cuve 1 cm. La longueur d'onde, E1%, le blanc et le facteur de dilution restent à définir pour votre substance et votre méthode.</p></div><button class="btn btn--ghost" id="btn-comparative-method" type="button">Appliquer l'exemple</button></div>
       <div class="card" style="margin-bottom:var(--s5)">
         <div class="card__title">Méthode — définie une fois pour la série</div>
         <div class="form-grid">
@@ -68,6 +73,8 @@ export class ScientificDataView {
           <label class="form-group"><span class="form-label">Unité de concentration</span><select id="method-unit" class="form-select"><option ${this.concentrationUnit === "mg/L" ? "selected" : ""}>mg/L</option><option ${this.concentrationUnit === "µg/mL" ? "selected" : ""}>µg/mL</option></select></label>
           ${numberInput("e1-percent", "E1% spécifique (si spectro)", this.e1Percent ?? "", "0.000001", false)}
           ${numberInput("path-length", "Trajet optique (cm, si spectro)", this.pathLengthCm, "0.001")}
+          ${numberInput("wavelength", "Longueur d'onde (nm)", this.wavelengthNm ?? "", "0.1", false)}
+          ${textInput("blank-description", "Blanc analytique", this.blankDescription, false)}
         </div>
         <p class="storage-note">E1% et trajet optique sont des paramètres analytiques. Ils sont copiés dans chaque mesure lors de sa saisie pour conserver le calcul reproductible.</p>
       </div>
@@ -92,7 +99,9 @@ export class ScientificDataView {
         <form id="measurement-form" class="form-grid">
           ${numberInput("vessel-id", "Cuve", 1, "1")}
           ${numberInput("sampling-time", "Temps théorique (min)", "", "0.001")}
-          ${numberInput("measurement-value", "Résultat : concentration ou absorbance", "", "0.000001")}
+          ${numberInput("measurement-value", "Résultat : concentration ou absorbance", "", "0.000001", false)}
+          ${numberInput("absorbance-reading-1", "Absorbance - lecture 1 (facultative)", "", "0.000001", false)}
+          ${numberInput("absorbance-reading-2", "Absorbance - lecture 2 (facultative)", "", "0.000001", false)}
           ${numberInput("dilution-factor", "Facteur de dilution", 1, "0.000001")}
           <label class="form-group"><span class="form-label">Formulation / groupe</span><input id="measurement-formulation" class="form-input" type="text" maxlength="100" required placeholder="Référence ou Essai" /></label>
           ${numberInput("reference-amount", "Teneur en PA par unité (mg)", "", "0.000001")}
@@ -111,7 +120,7 @@ export class ScientificDataView {
 
   private renderMeasurements(): string {
     if (!this.measurements.length) return `<div class="card" style="margin-bottom:var(--s5)"><p class="text-muted">Aucune mesure saisie.</p></div>`;
-    return `<div class="card" style="margin-bottom:var(--s5)"><div class="card__title">Mesures brutes (${this.measurements.length})</div><table class="results-table"><thead><tr><th>Cuve</th><th>Temps</th><th>Valeur</th><th>Quantification</th><th>Dilution</th><th></th></tr></thead><tbody>${this.measurements.map((m) => `<tr><td>${m.vesselId}</td><td>${m.samplingTimeMin} min</td><td>${m.value} ${m.quantificationMethod === "e1-percent" ? "A" : m.unit}</td><td>${m.quantificationMethod === "e1-percent" ? `E1% ${m.e1Percent}, l ${m.pathLengthCm ?? 1} cm` : "Concentration"}</td><td>×${m.dilutionFactor}</td><td><button class="btn btn--danger btn--sm" data-remove="${escapeHtml(m.id)}">Supprimer</button></td></tr>`).join("")}</tbody></table></div>`;
+    return `<div class="card" style="margin-bottom:var(--s5)"><div class="card__title">Mesures brutes (${this.measurements.length})</div><table class="results-table"><thead><tr><th>Cuve</th><th>Temps</th><th>Valeur</th><th>Quantification</th><th>Dilution</th><th></th></tr></thead><tbody>${this.measurements.map((m) => `<tr><td>${m.vesselId}</td><td>${m.samplingTimeMin} min</td><td>${m.value} ${m.quantificationMethod === "e1-percent" ? "A (moy.)" : m.unit}</td><td>${m.quantificationMethod === "e1-percent" ? `E1% ${m.e1Percent}, l ${m.pathLengthCm ?? 1} cm` : "Concentration"}</td><td>×${m.dilutionFactor}</td><td><button class="btn btn--danger btn--sm" data-remove="${escapeHtml(m.id)}">Supprimer</button></td></tr>`).join("")}</tbody></table></div>`;
   }
 
   private renderDerivedResults(): string {
@@ -170,11 +179,16 @@ export class ScientificDataView {
       const get = (id: string) => this.container!.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`)!;
       this.correctionConfig = this.readCorrectionConfig();
       this.readMethodConfig();
+      const read1 = optionalNumber(get("absorbance-reading-1").value);
+      const read2 = optionalNumber(get("absorbance-reading-2").value);
+      const suppliedValue = optionalNumber(get("measurement-value").value);
+      const value = this.quantificationMethod === "e1-percent" && read1 !== undefined && read2 !== undefined ? (read1 + read2) / 2 : suppliedValue ?? Number.NaN;
       const measure: RawMeasurement = {
         id: crypto.randomUUID(), vesselId: Number(get("vessel-id").value), samplingTimeMin: Number(get("sampling-time").value),
-        value: Number(get("measurement-value").value), unit: this.concentrationUnit,
+        value, unit: this.concentrationUnit,
         analyticalMethod: this.analyticalMethod, quantificationMethod: this.quantificationMethod,
         e1Percent: this.e1Percent, pathLengthCm: this.pathLengthCm, dilutionFactor: Number(get("dilution-factor").value),
+        absorbanceReading1: read1, absorbanceReading2: read2,
         formulation: get("measurement-formulation").value.trim(), referenceAmountMg: Number(get("reference-amount").value), annotation: get("measurement-annotation").value.trim() || undefined,
       };
       if (!Number.isInteger(measure.vesselId) || measure.vesselId < 1 || !Number.isFinite(measure.samplingTimeMin) || measure.samplingTimeMin <= 0 || !Number.isFinite(measure.value) || measure.value < 0 || !Number.isFinite(measure.dilutionFactor) || measure.dilutionFactor <= 0 || !measure.formulation || !Number.isFinite(measure.referenceAmountMg) || measure.referenceAmountMg! <= 0) {
@@ -199,6 +213,7 @@ export class ScientificDataView {
     this.container?.querySelector("#science-back")?.addEventListener("click", this.onBack);
     this.container?.querySelector("#science-report")?.addEventListener("click", () => this.printReport());
     this.container?.querySelector("#science-save")?.addEventListener("click", () => void this.save());
+    this.container?.querySelector("#btn-comparative-method")?.addEventListener("click", () => this.applyComparativePreset());
   }
 
   private async save(): Promise<void> {
@@ -235,6 +250,8 @@ export class ScientificDataView {
     this.quantificationMethod = (query<HTMLSelectElement>("quantification-method")?.value ?? "concentration") as RawMeasurement["quantificationMethod"];
     this.e1Percent = query<HTMLInputElement>("e1-percent")?.value ? Number(query<HTMLInputElement>("e1-percent")!.value) : undefined;
     this.pathLengthCm = Number(query<HTMLInputElement>("path-length")?.value);
+    this.wavelengthNm = optionalNumber(query<HTMLInputElement>("wavelength")?.value ?? "");
+    this.blankDescription = query<HTMLInputElement>("blank-description")?.value.trim() ?? "";
     this.analyticalMethod = (query<HTMLSelectElement>("method-analytical")?.value ?? "uv-vis") as RawMeasurement["analyticalMethod"];
     this.concentrationUnit = (query<HTMLSelectElement>("method-unit")?.value ?? "mg/L") as RawMeasurement["unit"];
   }
@@ -268,6 +285,8 @@ export class ScientificDataView {
       concentrationUnit: this.concentrationUnit,
       ...(this.e1Percent !== undefined ? { e1Percent: this.e1Percent } : {}),
       ...(this.pathLengthCm ? { pathLengthCm: this.pathLengthCm } : {}),
+      ...(this.wavelengthNm !== undefined ? { wavelengthNm: this.wavelengthNm } : {}),
+      ...(this.blankDescription ? { blankDescription: this.blankDescription } : {}),
     };
   }
 
@@ -275,6 +294,14 @@ export class ScientificDataView {
     const measurements = this.measurements.filter((m) => m.vesselId === vesselId);
     const referenceAmountMg = measurements[0]?.referenceAmountMg ?? this.correctionConfig.referenceAmountMg;
     return correctSuccessiveSampling(measurements, { ...this.correctionConfig, referenceAmountMg });
+  }
+
+  private applyComparativePreset(): void {
+    this.correctionConfig = { ...this.correctionConfig, mediumVolumeMl: 900, sampleVolumeMl: 10, replacementMode: "full" };
+    this.quantificationMethod = "concentration"; this.e1Percent = undefined; this.pathLengthCm = 1;
+    this.analyticalMethod = "uv-vis"; this.concentrationUnit = "mg/L"; this.wavelengthNm = undefined; this.blankDescription = "";
+    this.laboratoryMetadata = { ...this.laboratoryMetadata, dosageForm: this.laboratoryMetadata.dosageForm || "Forme orale solide", mediumDescription: this.laboratoryMetadata.mediumDescription || "À renseigner", temperatureC: this.laboratoryMetadata.temperatureC ?? 37, rotationRpm: this.laboratoryMetadata.rotationRpm ?? 75 };
+    this.render();
   }
 }
 
@@ -287,6 +314,7 @@ function textInput(id: string, label: string, value: string, required: boolean):
 }
 
 function escapeHtml(value: string): string { return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function optionalNumber(value: string): number | undefined { return value.trim() === "" ? undefined : Number(value); }
 
 function renderProfileChart(profiles: Map<string, { timeMin: number; dissolvedPercent: number }[]>): string {
   if (!profiles.size) return "";

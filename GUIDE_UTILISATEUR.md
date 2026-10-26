@@ -18,6 +18,15 @@ DissoloMaster Pro est un outil hors ligne pour la recherche universitaire. Il ne
 
 Chaque enregistrement scientifique crée une nouvelle révision et conserve les révisions précédentes dans l'essai. Une modification doit être traitée comme une nouvelle saisie documentée, jamais comme une correction silencieuse.
 
+## Installation sur téléphone
+
+L'installation PWA demande une version de production publiée en **HTTPS**. Une adresse locale telle que `http://192.168.x.x:5173` peut afficher l'application sur le téléphone, mais Chrome et Safari refuseront souvent de l'installer car elle n'est pas sécurisée.
+
+- **Android / Chrome** : ouvrez l'URL HTTPS, puis menu ⋮ → **Installer l'application** ou **Ajouter à l'écran d'accueil**.
+- **iPhone / iPad** : ouvrez l'URL HTTPS dans **Safari**, puis Partager → **Sur l'écran d'accueil**. Safari n'affiche généralement pas de bouton Installer.
+
+Après une nouvelle publication, supprimez au besoin l'ancienne icône et rechargez l'URL une fois : le navigateur doit récupérer le manifeste et le service worker mis à jour avant de proposer l'installation.
+
 ## Organisation des paramètres
 
 - **Méthode** : volume de milieu, volume de prélèvement, remplacement, UV-Vis/CLHP, E1%, trajet optique.
@@ -27,6 +36,8 @@ Chaque enregistrement scientifique crée une nouvelle révision et conserve les 
 ## Quantification E1%
 
 En mode E1%, saisissez une absorbance corrigée du blanc, l'E1% applicable et le trajet optique. L'application utilise `C (mg/L) = A × 10 000 / (E1% × l)`, puis applique le facteur de dilution et la correction des prélèvements. Vérifiez l'applicabilité, la linéarité et les interférences de la méthode avant usage.
+
+L'exemple de méthode comparative ne renseigne que des paramètres opérationnels à vérifier. La longueur d'onde, le blanc, l'E1%, la dilution et les conditions propres au produit doivent toujours être définis pour la méthode réellement appliquée.
 
 ## Reproductibilité
 

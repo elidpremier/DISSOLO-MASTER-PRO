@@ -242,6 +242,13 @@ textarea {
   margin-bottom: var(--s4);
 }
 
+.protocol-preset {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s5);
+}
+
 .card__body {
   display: flex;
   flex-direction: column;

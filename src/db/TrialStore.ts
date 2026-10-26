@@ -352,6 +352,9 @@ function validateScientificData(data: Omit<ScientificDataset, "updatedAt" | "rev
     (method.analyticalMethod !== "uv-vis" && method.analyticalMethod !== "clhp") ||
     (method.quantificationMethod !== "concentration" && method.quantificationMethod !== "e1-percent") ||
     (method.concentrationUnit !== "mg/L" && method.concentrationUnit !== "µg/mL") ||
+    (method.wavelengthNm !== undefined && (!Number.isFinite(method.wavelengthNm) || method.wavelengthNm <= 0)) ||
+    (method.targetAbsorbanceMin !== undefined && (!Number.isFinite(method.targetAbsorbanceMin) || method.targetAbsorbanceMin < 0)) ||
+    (method.targetAbsorbanceMax !== undefined && (!Number.isFinite(method.targetAbsorbanceMax) || method.targetAbsorbanceMax <= 0 || method.targetAbsorbanceMax < (method.targetAbsorbanceMin ?? 0))) ||
     (method.quantificationMethod === "e1-percent" && (!Number.isFinite(method.e1Percent) || method.e1Percent! <= 0 || !Number.isFinite(method.pathLengthCm ?? 1) || (method.pathLengthCm ?? 1) <= 0))
   )) {
     throw new TrialStoreError("Paramètres analytiques invalides.");
@@ -365,6 +368,8 @@ function validateScientificData(data: Omit<ScientificDataset, "updatedAt" | "rev
       (measurement.analyticalMethod !== "uv-vis" && measurement.analyticalMethod !== "clhp") ||
       (measurement.quantificationMethod !== undefined && measurement.quantificationMethod !== "concentration" && measurement.quantificationMethod !== "e1-percent") ||
       (measurement.quantificationMethod === "e1-percent" && (!Number.isFinite(measurement.e1Percent) || measurement.e1Percent! <= 0 || !Number.isFinite(measurement.pathLengthCm ?? 1) || (measurement.pathLengthCm ?? 1) <= 0)) ||
+      (measurement.absorbanceReading1 !== undefined && (!Number.isFinite(measurement.absorbanceReading1) || measurement.absorbanceReading1 < 0)) ||
+      (measurement.absorbanceReading2 !== undefined && (!Number.isFinite(measurement.absorbanceReading2) || measurement.absorbanceReading2 < 0)) ||
       (measurement.referenceAmountMg !== undefined && (!Number.isFinite(measurement.referenceAmountMg) || measurement.referenceAmountMg <= 0)) ||
       (measurement.formulation !== undefined && (typeof measurement.formulation !== "string" || !measurement.formulation.trim()))) {
       throw new TrialStoreError("Une mesure brute est invalide.");

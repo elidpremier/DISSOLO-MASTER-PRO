@@ -200,16 +200,24 @@ class App {
     const modal = document.createElement("div");
     modal.id = "pwa-install-instructions";
     modal.className = "install-prompt";
+    const isSecure = window.isSecureContext;
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const contextWarning = !isSecure
+      ? `<p class="form-error" style="display:block">⚠ Cette adresse n'est pas sécurisée (HTTPS). Une PWA ne peut généralement pas être installée depuis une adresse locale en <code>http://</code> sur un téléphone. Publiez-la sur un hébergement HTTPS ou ouvrez une URL HTTPS.</p>`
+      : "";
+    const instructions = isIos
+      ? `<strong>iPhone / iPad (Safari) :</strong> ouvrez l'application dans Safari, touchez Partager, puis <em>Sur l'écran d'accueil</em>. Le navigateur n'affiche pas toujours un bouton Installer.`
+      : isAndroid
+        ? `<strong>Android (Chrome) :</strong> ouvrez l'URL HTTPS dans Chrome puis utilisez le menu ⋮ et <em>Installer l'application</em> ou <em>Ajouter à l'écran d'accueil</em>.`
+        : `<strong>Android (Chrome) :</strong> utilisez le menu ⋮ puis <em>Installer l'application</em>. <strong>iPhone / iPad :</strong> utilisez Safari → Partager → <em>Sur l'écran d'accueil</em>.`;
     modal.innerHTML = `
       <div class="install-prompt__title">⬇ Installer DissoloMaster Pro</div>
       <div class="install-prompt__body">
-        Pour installer l'application hors ligne, deux options selon votre contexte :
+        ${contextWarning}
+        ${instructions}
         <br/><br/>
-        <strong>Chrome / Edge :</strong> Lancez la version de production
-        (<code>npm run build &amp;&amp; npm run preview</code>) et cliquez sur
-        l'icône ⊕ dans la barre d'adresse.<br/><br/>
-        <strong>Firefox :</strong> L'installation PWA n'est pas encore supportée
-        en dehors des outils de développement.
+        <strong>Important :</strong> l'installation requiert une version de production servie en HTTPS. Le serveur de développement ou une adresse IP locale en HTTP fonctionne pour tester l'interface, mais pas de façon fiable pour installer sur un téléphone.
       </div>
       <div class="install-prompt__actions">
         <button class="btn btn--primary btn--sm" id="pwa-instr-close">Fermer</button>

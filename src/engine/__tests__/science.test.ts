@@ -48,6 +48,16 @@ describe("Correction des prélèvements successifs", () => {
     expect(() => quantifyConcentrationMgPerL({ ...measurement("e1", 5, 0.5), quantificationMethod: "e1-percent", e1Percent: 0 })).toThrow(ScientificValidationError);
   });
 
+  it("reproduit un calcul E1% après dilution F=50", () => {
+    const protocolCorrection = { ...correction, referenceAmountMg: 500 };
+    const raw = { ...measurement("e1-dilution", 15, 0.452), quantificationMethod: "e1-percent" as const, e1Percent: 520, pathLengthCm: 1, dilutionFactor: 50 };
+    // C cuve = 0,452 × 10 000 / 520 × 50 = 434,615 mg/L = 0,434615 mg/mL.
+    const result = correctSuccessiveSampling([raw], protocolCorrection)[0];
+    expect(result.correctedConcentrationMgPerL).toBeCloseTo(434.615, 3);
+    expect(result.cumulativeAmountMg).toBeCloseTo(391.154, 3);
+    expect(result.dissolvedPercent).toBeCloseTo(78.231, 3);
+  });
+
   it("rejette deux temps identiques dans une même cuve", () => {
     expect(() => correctSuccessiveSampling([measurement("a", 5, 1), measurement("b", 5, 2)], correction)).toThrow(ScientificValidationError);
   });

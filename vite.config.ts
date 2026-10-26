@@ -10,7 +10,8 @@ export default defineConfig({
       devOptions: {
         enabled: false,
       },
-      includeAssets: ["icons/icon.svg"],
+      // Icônes raster : nécessaires à l'installation PWA sur Android et iOS.
+      includeAssets: ["icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png"],
       manifest: false, // On utilise notre propre public/manifest.webmanifest
       workbox: {
         // Stratégie CacheFirst pour tous les assets statiques

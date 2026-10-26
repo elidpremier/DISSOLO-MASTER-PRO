@@ -37,6 +37,10 @@ export interface AnalyticalMethodConfig {
   concentrationUnit: ConcentrationUnit;
   e1Percent?: number;
   pathLengthCm?: number;
+  wavelengthNm?: number;
+  blankDescription?: string;
+  targetAbsorbanceMin?: number;
+  targetAbsorbanceMax?: number;
 }
 
 /** Mode de remplacement après chaque prélèvement. */
@@ -56,6 +60,9 @@ export interface RawMeasurement {
   e1Percent?: number;
   /** Longueur de trajet optique de la cuve, en cm. */
   pathLengthCm?: number;
+  /** Lectures UV répétées, si renseignées ; value conserve leur moyenne utilisée. */
+  absorbanceReading1?: number;
+  absorbanceReading2?: number;
   /** Facteur multiplicatif appliqué à la concentration mesurée (≥ 1). */
   dilutionFactor: number;
   /** Groupe de comparaison (p. ex. « Référence » ou « Essai »). */

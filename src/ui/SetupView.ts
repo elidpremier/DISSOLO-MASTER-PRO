@@ -83,6 +83,14 @@ export class SetupView {
         </p>
       </div>
 
+      <div class="card protocol-preset" style="margin-bottom:var(--s5)">
+        <div>
+          <div class="card__title">Raccourci de protocole</div>
+          <p class="text-muted">Pré-remplit un exemple de séquence comparative : 6 cuves, 35 s, prélèvements à 5, 10, 15, 20, 30, 45 et 60 min. Vérifiez et adaptez chaque valeur à votre méthode.</p>
+        </div>
+        <button type="button" class="btn btn--ghost" id="btn-comparative-preset">Appliquer l'exemple</button>
+      </div>
+
       <div class="card card--elevated">
         <form class="setup-view__form" id="setup-form" novalidate>
 
@@ -263,6 +271,18 @@ export class SetupView {
       if (hintMissed && !cbDisable?.checked) {
         hintMissed.textContent = `Une action non confirmée ${inputMissed.value} s après son échéance sera marquée automatiquement.`;
       }
+    });
+
+    form.querySelector("#btn-comparative-preset")?.addEventListener("click", () => {
+      const field = <T extends HTMLInputElement>(id: string): T | null => form.querySelector<T>(`#${id}`);
+      const id = field("field-id");
+      if (id && !id.value) id.value = `dissolution-comparative-${new Date().toISOString().slice(0, 10)}`;
+      const vessels = field("field-vessels"); if (vessels) vessels.value = "6";
+      const offset = field("field-offset"); if (offset) offset.value = "35";
+      const times = field("field-times"); if (times) times.value = "5, 10, 15, 20, 30, 45, 60";
+      const prealert = field("field-prealert"); if (prealert) prealert.value = "5";
+      const conflict = field("field-conflict"); if (conflict) conflict.value = "15";
+      this.clearError();
     });
   }
 
