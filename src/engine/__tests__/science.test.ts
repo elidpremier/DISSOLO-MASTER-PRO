@@ -107,4 +107,26 @@ describe("Comparaison de profils", () => {
     expect(result.f1).toBeNull();
     expect(result.notEvaluableReasons).not.toHaveLength(0);
   });
+
+  it("retourne les contrôles d'éligibilité séparément du calcul", () => {
+    const result = compareProfiles(ref, ref, {
+      ...rules,
+      minimumUnitsPerFormulation: 2,
+      maximumCoefficientOfVariationPercent: 20,
+    }, {
+      referenceUnitCount: 1,
+      testUnitCount: 2,
+      referenceCoefficientOfVariationByTime: new Map([[5, 10], [10, 10], [15, 10]]),
+      testCoefficientOfVariationByTime: new Map([[5, 10], [10, 10], [15, 10]]),
+    });
+    expect(result.f1).toBeNull();
+    expect(result.checks.find((check) => check.id === "unit-count")?.status).toBe("fail");
+    expect(result.checks.find((check) => check.id === "variability")?.status).toBe("pass");
+  });
+
+  it("marque un contrôle non configuré comme non évalué", () => {
+    const result = compareProfiles(ref, ref, rules);
+    expect(result.checks.find((check) => check.id === "unit-count")?.status).toBe("not-evaluated");
+    expect(result.checks.find((check) => check.id === "variability")?.status).toBe("not-evaluated");
+  });
 });

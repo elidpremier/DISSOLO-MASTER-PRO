@@ -11,6 +11,8 @@ import {
   type DissolutionProfilePoint,
   type ProfileComparisonResult,
   type ProfileComparisonRules,
+  type ProfileComparisonContext,
+  type ProfileComparisonCheck,
   type RawMeasurement,
   ScientificValidationError,
 } from "../types/science";
@@ -145,34 +147,98 @@ export function calculateDescriptiveStatistics(values: number[]): DescriptiveSta
 export function compareProfiles(
   reference: DissolutionProfilePoint[],
   test: DissolutionProfilePoint[],
-  rules: ProfileComparisonRules
+  rules: ProfileComparisonRules,
+  context: ProfileComparisonContext = {},
 ): ProfileComparisonResult {
   validateRules(rules);
   const reasons: string[] = [];
+  const checks: ProfileComparisonCheck[] = [];
   const refByTime = toProfileMap(reference, "reference", reasons);
   const testByTime = toProfileMap(test, "test", reasons);
   const times = [...refByTime.keys()].sort((a, b) => a - b);
 
   if (reference.length !== test.length || times.some((time) => !testByTime.has(time))) {
     reasons.push("Les profils doivent contenir exactement les mêmes temps de prélèvement.");
+    checks.push({ id: "aligned-times", label: "Temps de prélèvement alignés", status: "fail", detail: "Les deux profils doivent contenir les mêmes temps." });
+  } else {
+    checks.push({ id: "aligned-times", label: "Temps de prélèvement alignés", status: "pass", detail: `${times.length} temps communs.` });
   }
   if (times.length < rules.minimumPoints) {
     reasons.push(`Au moins ${rules.minimumPoints} points communs sont requis par les règles sélectionnées.`);
+    checks.push({ id: "minimum-points", label: "Nombre minimal de points", status: "fail", detail: `${times.length}/${rules.minimumPoints} points.` });
+  } else {
+    checks.push({ id: "minimum-points", label: "Nombre minimal de points", status: "pass", detail: `${times.length}/${rules.minimumPoints} points.` });
   }
-  if (reasons.length > 0) return { rules, f1: null, f2: null, notEvaluableReasons: reasons };
+  addUnitCountCheck(rules, context, reasons, checks);
+  addCoefficientOfVariationCheck(rules, context, times, reasons, checks);
+  if (checks.some((check) => check.status === "fail") || reasons.length > 0) {
+    return { rules, f1: null, f2: null, checks, notEvaluableReasons: reasons };
+  }
 
   const absoluteDifferences = times.map((time) => Math.abs(refByTime.get(time)! - testByTime.get(time)!));
   const referenceSum = times.reduce((sum, time) => sum + refByTime.get(time)!, 0);
   if (referenceSum === 0) {
-    return { rules, f1: null, f2: null, notEvaluableReasons: ["La somme des pourcentages de référence ne peut pas être nulle pour calculer f1."] };
+    const reason = "La somme des pourcentages de référence ne peut pas être nulle pour calculer f1.";
+    checks.push({ id: "non-zero-reference", label: "Référence exploitable", status: "fail", detail: reason });
+    return { rules, f1: null, f2: null, checks, notEvaluableReasons: [reason] };
   }
+  checks.push({ id: "non-zero-reference", label: "Référence exploitable", status: "pass", detail: "La somme de référence est non nulle." });
   const meanSquaredDifference = times.reduce((sum, time) => sum + (refByTime.get(time)! - testByTime.get(time)!) ** 2, 0) / times.length;
   return {
     rules,
     f1: (100 * absoluteDifferences.reduce((sum, value) => sum + value, 0)) / referenceSum,
     f2: 50 * Math.log10(100 / Math.sqrt(1 + meanSquaredDifference)),
+    checks,
     notEvaluableReasons: [],
   };
+}
+
+function addUnitCountCheck(
+  rules: ProfileComparisonRules,
+  context: ProfileComparisonContext,
+  reasons: string[],
+  checks: ProfileComparisonCheck[],
+): void {
+  if (rules.minimumUnitsPerFormulation === undefined) {
+    checks.push({ id: "unit-count", label: "Nombre d'unités par formulation", status: "not-evaluated", detail: "Aucun minimum configuré." });
+    return;
+  }
+  const referenceCount = context.referenceUnitCount;
+  const testCount = context.testUnitCount;
+  if (referenceCount === undefined || testCount === undefined) {
+    checks.push({ id: "unit-count", label: "Nombre d'unités par formulation", status: "not-evaluated", detail: "Le nombre d'unités n'est pas renseigné pour les deux formulations." });
+    reasons.push("Le nombre d'unités n'est pas renseigné pour les deux formulations.");
+    return;
+  }
+  const pass = referenceCount >= rules.minimumUnitsPerFormulation && testCount >= rules.minimumUnitsPerFormulation;
+  const detail = `Référence ${referenceCount}, essai ${testCount}; minimum ${rules.minimumUnitsPerFormulation}.`;
+  checks.push({ id: "unit-count", label: "Nombre d'unités par formulation", status: pass ? "pass" : "fail", detail });
+  if (!pass) reasons.push(`Le nombre minimal d'unités requis est ${rules.minimumUnitsPerFormulation} par formulation.`);
+}
+
+function addCoefficientOfVariationCheck(
+  rules: ProfileComparisonRules,
+  context: ProfileComparisonContext,
+  times: number[],
+  reasons: string[],
+  checks: ProfileComparisonCheck[],
+): void {
+  if (rules.maximumCoefficientOfVariationPercent === undefined) {
+    checks.push({ id: "variability", label: "Variabilité par temps", status: "not-evaluated", detail: "Aucun seuil de CV configuré." });
+    return;
+  }
+  const referenceCvs = context.referenceCoefficientOfVariationByTime;
+  const testCvs = context.testCoefficientOfVariationByTime;
+  if (!referenceCvs || !testCvs || times.some((time) => referenceCvs.get(time) == null || testCvs.get(time) == null)) {
+    checks.push({ id: "variability", label: "Variabilité par temps", status: "not-evaluated", detail: "Au moins un CV par temps est manquant." });
+    reasons.push("Au moins un CV par temps est manquant.");
+    return;
+  }
+  const maximum = Math.max(...times.flatMap((time) => [referenceCvs.get(time)!, testCvs.get(time)!]));
+  const pass = maximum <= rules.maximumCoefficientOfVariationPercent;
+  const detail = `CV maximal ${maximum.toFixed(2)} %; seuil ${rules.maximumCoefficientOfVariationPercent} %.`;
+  checks.push({ id: "variability", label: "Variabilité par temps", status: pass ? "pass" : "fail", detail });
+  if (!pass) reasons.push(`Le CV maximal dépasse le seuil de ${rules.maximumCoefficientOfVariationPercent} %.`);
 }
 
 function toProfileMap(points: DissolutionProfilePoint[], field: string, reasons: string[]): Map<number, number> {
@@ -216,6 +282,14 @@ function validateRules(rules: ProfileComparisonRules): void {
   if (!rules.id.trim() || !rules.version.trim()) throw new ScientificValidationError("rules", "id et version sont requis.");
   if (!Number.isInteger(rules.minimumPoints) || rules.minimumPoints < 1) {
     throw new ScientificValidationError("minimumPoints", "doit être un entier supérieur ou égal à 1.");
+  }
+  if (rules.minimumUnitsPerFormulation !== undefined &&
+      (!Number.isInteger(rules.minimumUnitsPerFormulation) || rules.minimumUnitsPerFormulation < 1)) {
+    throw new ScientificValidationError("minimumUnitsPerFormulation", "doit être un entier supérieur ou égal à 1.");
+  }
+  if (rules.maximumCoefficientOfVariationPercent !== undefined &&
+      (!Number.isFinite(rules.maximumCoefficientOfVariationPercent) || rules.maximumCoefficientOfVariationPercent <= 0)) {
+    throw new ScientificValidationError("maximumCoefficientOfVariationPercent", "doit être un nombre fini strictement positif.");
   }
 }
 

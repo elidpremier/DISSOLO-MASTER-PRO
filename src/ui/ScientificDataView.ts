@@ -153,24 +153,57 @@ export class ScientificDataView {
     }
     const aggregateRows: string[] = [];
     const profiles = new Map<string, { timeMin: number; dissolvedPercent: number }[]>();
+    const cvByFormulation = new Map<string, Map<number, number | null>>();
+    const vesselsByFormulation = new Map<string, Set<number>>();
     for (const [formulation, byTime] of grouped) {
       const profile: { timeMin: number; dissolvedPercent: number }[] = [];
+      const cvByTime = new Map<number, number | null>();
       for (const [timeMin, values] of [...byTime.entries()].sort(([a], [b]) => a - b)) {
         const stats = calculateDescriptiveStatistics(values);
         profile.push({ timeMin, dissolvedPercent: stats.mean });
+        cvByTime.set(timeMin, stats.coefficientOfVariationPercent);
         aggregateRows.push(`<tr><td>${escapeHtml(formulation)}</td><td>${timeMin} min</td><td>${stats.count}</td><td>${stats.mean.toFixed(2)} %</td><td>${stats.sampleStandardDeviation === null ? "—" : stats.sampleStandardDeviation.toFixed(2)}</td><td>${stats.coefficientOfVariationPercent === null ? "—" : `${stats.coefficientOfVariationPercent.toFixed(2)} %`}</td></tr>`);
       }
       profiles.set(formulation, profile);
+      cvByFormulation.set(formulation, cvByTime);
+      vesselsByFormulation.set(formulation, new Set(
+        Array.from(perVessel.entries())
+          .filter(([, values]) => values.some((value) => (value.raw.formulation?.trim() || "Non renseignée") === formulation))
+          .map(([vesselId]) => vesselId)
+      ));
     }
     const summary = `<div class="card" style="margin-bottom:var(--s5)"><div class="card__title">Statistiques descriptives par formulation et temps</div><table class="results-table"><thead><tr><th>Formulation</th><th>Temps</th><th>n</th><th>Moyenne</th><th>SD</th><th>%CV</th></tr></thead><tbody>${aggregateRows.join("")}</tbody></table></div>`;
     const chart = renderProfileChart(profiles);
     if (profiles.size !== 2) return `${summary}${chart}<div class="card" style="margin-bottom:var(--s5)"><p class="text-muted">La comparaison f1/f2 requiert exactement deux formulations renseignées.</p></div>`;
     const [referenceName, testName] = [...profiles.keys()];
-    const result = compareProfiles(profiles.get(referenceName)!, profiles.get(testName)!, { id: "research-f1-f2", version: "1.0.0", minimumPoints: 3 });
+    const result = compareProfiles(
+      profiles.get(referenceName)!,
+      profiles.get(testName)!,
+      {
+        id: "research-f1-f2",
+        version: "1.1.0",
+        minimumPoints: 3,
+        minimumUnitsPerFormulation: 2,
+        maximumCoefficientOfVariationPercent: 20,
+      },
+      {
+        referenceUnitCount: vesselsByFormulation.get(referenceName)?.size,
+        testUnitCount: vesselsByFormulation.get(testName)?.size,
+        referenceCoefficientOfVariationByTime: cvByFormulation.get(referenceName),
+        testCoefficientOfVariationByTime: cvByFormulation.get(testName),
+      }
+    );
+    const checksHtml = `<div class="results-table-wrap"><table class="results-table"><thead><tr><th>Contrôle</th><th>État</th><th>Détail</th></tr></thead><tbody>${result.checks.map((check) => `<tr><td>${escapeHtml(check.label)}</td><td>${this.profileCheckLabel(check.status)}</td><td>${escapeHtml(check.detail)}</td></tr>`).join("")}</tbody></table></div>`;
     const resultHtml = result.notEvaluableReasons.length
-      ? `<p class="text-muted">Non évaluable : ${result.notEvaluableReasons.map(escapeHtml).join(" ")}</p>`
-      : `<div class="results-stats"><div class="stat-card"><div class="stat-card__value">${result.f1!.toFixed(2)}</div><div class="stat-card__label">f1</div></div><div class="stat-card"><div class="stat-card__value">${result.f2!.toFixed(2)}</div><div class="stat-card__label">f2</div></div></div><p class="text-muted" style="margin-top:var(--s3)">Résultat numérique exploratoire entre « ${escapeHtml(referenceName)} » et « ${escapeHtml(testName)} » ; aucune conclusion réglementaire n’est déduite automatiquement.</p>`;
+      ? `<p class="text-muted">Non évaluable : ${result.notEvaluableReasons.map(escapeHtml).join(" ")}</p>${checksHtml}`
+      : `${checksHtml}<div class="results-stats"><div class="stat-card"><div class="stat-card__value">${result.f1!.toFixed(2)}</div><div class="stat-card__label">f1</div></div><div class="stat-card"><div class="stat-card__value">${result.f2!.toFixed(2)}</div><div class="stat-card__label">f2</div></div></div><p class="text-muted" style="margin-top:var(--s3)">Résultat numérique exploratoire entre « ${escapeHtml(referenceName)} » et « ${escapeHtml(testName)} » ; aucune conclusion réglementaire n’est déduite automatiquement.</p>`;
     return `${summary}${chart}<div class="card" style="margin-bottom:var(--s5)"><div class="card__title">Comparaison des profils (f1 / f2)</div>${resultHtml}</div>`;
+  }
+
+  private profileCheckLabel(status: "pass" | "fail" | "not-evaluated"): string {
+    if (status === "pass") return "✓ Conforme au contrôle";
+    if (status === "fail") return "✕ Échec";
+    return "— Non évalué";
   }
 
   private bindEvents(): void {
