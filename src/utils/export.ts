@@ -9,10 +9,11 @@
 import type { TrialConfig } from "../types/timeline";
 import type { ActionEvent } from "../timer/EventRecord";
 import type { ScientificDataset } from "../types/science";
+import type { TrialInterruption } from "../timer/Lifecycle";
 import { formatDeviation, formatOffsetMs, actionLabel } from "./format";
 
 const APP_VERSION = "0.5.0-research";
-const EXPORT_SCHEMA_VERSION = 2;
+const EXPORT_SCHEMA_VERSION = 3;
 
 // ---------------------------------------------------------------------------
 // Export JSON
@@ -23,9 +24,23 @@ export interface ExportPayload {
   schemaVersion: number;
   intendedUse: "research-reference-only";
   exportedAt: string;
+  manifest: ExportManifest;
   config: TrialConfig;
   events: ActionEventExport[];
   scientificData?: ScientificDataset;
+  scientificRevisions?: ScientificDataset[];
+}
+
+export interface ExportManifest {
+  format: "dissolomaster-archive";
+  appVersion: string;
+  storageSchemaVersion: number;
+  status: "in-progress" | "completed";
+  startedAt: string;
+  completedAt: string | null;
+  lastCheckpointAt: string;
+  interruptions: TrialInterruption[];
+  integritySha256?: string;
 }
 
 export interface ActionEventExport {
@@ -58,6 +73,16 @@ export function buildExportPayload(
     schemaVersion: EXPORT_SCHEMA_VERSION,
     intendedUse: "research-reference-only",
     exportedAt: new Date().toISOString(),
+    manifest: {
+      format: "dissolomaster-archive",
+      appVersion: APP_VERSION,
+      storageSchemaVersion: 3,
+      status: "completed",
+      startedAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      lastCheckpointAt: new Date().toISOString(),
+      interruptions: [],
+    },
     config,
     events: records.map((r) => ({
       actionId: r.action.id,
@@ -79,6 +104,36 @@ export function buildExportPayload(
   };
 }
 
+export function buildArchivePayload(trial: {
+  config: TrialConfig;
+  records: ActionEvent[];
+  startedAt: string;
+  completedAt: string | null;
+  status: "in-progress" | "completed";
+  lastCheckpointAt: string;
+  interruptions: TrialInterruption[];
+  scientificData?: ScientificDataset;
+  scientificRevisions?: ScientificDataset[];
+  appVersion: string;
+}): ExportPayload {
+  const payload = buildExportPayload(trial.config, trial.records, trial.scientificData);
+  return {
+    ...payload,
+    exportVersion: trial.appVersion,
+    manifest: {
+      format: "dissolomaster-archive",
+      appVersion: trial.appVersion,
+      storageSchemaVersion: 3,
+      status: trial.status,
+      startedAt: trial.startedAt,
+      completedAt: trial.completedAt,
+      lastCheckpointAt: trial.lastCheckpointAt,
+      interruptions: trial.interruptions,
+    },
+    scientificRevisions: trial.scientificRevisions,
+  };
+}
+
 /**
  * Déclenche le téléchargement d'un fichier JSON.
  */
@@ -88,6 +143,21 @@ export function downloadJSON(config: TrialConfig, records: ActionEvent[], scient
     type: "application/json",
   });
   triggerDownload(blob, `${config.id}_dissolution_${dateTag()}.json`);
+}
+
+export async function downloadArchiveJSON(trial: Parameters<typeof buildArchivePayload>[0]): Promise<void> {
+  const payload = buildArchivePayload(trial);
+  payload.manifest.integritySha256 = await calculateArchiveHash(payload);
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  triggerDownload(blob, `${trial.config.id}_archive_${dateTag()}.json`);
+}
+
+export async function calculateArchiveHash(payload: ExportPayload): Promise<string> {
+  const unsigned = structuredClone(payload);
+  delete unsigned.manifest.integritySha256;
+  const bytes = new TextEncoder().encode(JSON.stringify(unsigned));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
 }
 
 // ---------------------------------------------------------------------------

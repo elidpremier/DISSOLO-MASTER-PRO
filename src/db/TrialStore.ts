@@ -18,6 +18,7 @@ import type { TrialConfig } from "../types/timeline";
 import type { ActionEvent } from "../timer/EventRecord";
 import type { DissolutionMethodProfile, LaboratoryMetadata, ScientificDataset } from "../types/science";
 import type { TrialInterruption } from "../timer/Lifecycle";
+import { calculateArchiveHash, type ExportPayload } from "../utils/export";
 
 // ---------------------------------------------------------------------------
 // Constantes
@@ -316,18 +317,42 @@ export async function importTrialFromJSON(raw: unknown): Promise<string> {
     );
   }
 
-  const payload = raw as { config: TrialConfig; events: ActionEvent[]; exportedAt: string; scientificData?: ScientificDataset };
+  const payload = raw as ExportPayload;
+  if (payload.manifest?.integritySha256) {
+    const expected = await calculateArchiveHash(payload);
+    if (expected !== payload.manifest.integritySha256) {
+      throw new TrialStoreError("Intégrité de l'archive invalide — aucune donnée n'a été restaurée.");
+    }
+  }
 
   // Construire un StoredTrial depuis le payload d'export
   // Les records ont une structure légèrement différente (events → records)
   // On reconstruit des ActionEvent minimaux depuis les events exportés
   const records = rebuildRecordsFromExport(payload.events);
 
-  const storageId = await saveTrial(payload.config, records, payload.exportedAt);
-  if (payload.scientificData) {
-    await saveScientificData(storageId, payload.scientificData);
+  const storageId = createStorageId();
+  const now = new Date().toISOString();
+  const manifest = payload.manifest;
+  const trial: StoredTrial = {
+    storageId,
+    config: structuredClone(payload.config),
+    records: structuredClone(records),
+    startedAt: manifest?.startedAt ?? payload.exportedAt,
+    completedAt: manifest?.completedAt ?? now,
+    status: manifest?.status ?? "completed",
+    lastCheckpointAt: manifest?.lastCheckpointAt ?? now,
+    interruptions: structuredClone(manifest?.interruptions ?? []),
+    appVersion: manifest?.appVersion ?? payload.exportVersion,
+    scientificData: payload.scientificData ? structuredClone(payload.scientificData) : undefined,
+    scientificRevisions: payload.scientificRevisions ? structuredClone(payload.scientificRevisions) : undefined,
+  };
+  try {
+    const db = await getDb();
+    await db.put(STORE_TRIALS, trial);
+    return storageId;
+  } catch (err) {
+    throw new TrialStoreError("Échec de la restauration atomique de l'archive.", err);
   }
-  return storageId;
 }
 
 // ---------------------------------------------------------------------------
@@ -356,12 +381,19 @@ function isValidExportPayload(raw: unknown): boolean {
   const obj = raw as Record<string, unknown>;
   if (typeof obj["exportVersion"] !== "string") return false;
   if (obj["intendedUse"] !== "research-reference-only") return false;
-  if (obj["schemaVersion"] !== 2) return false;
+  if (obj["schemaVersion"] !== 2 && obj["schemaVersion"] !== 3) return false;
   if (!obj["config"] || typeof obj["config"] !== "object") return false;
   if (!Array.isArray(obj["events"])) return false;
   const config = obj["config"] as Record<string, unknown>;
   if (typeof config["id"] !== "string") return false;
   if (typeof config["vesselCount"] !== "number") return false;
+  if (obj["schemaVersion"] === 3) {
+    const manifest = obj["manifest"];
+    if (!manifest || typeof manifest !== "object") return false;
+    const m = manifest as Record<string, unknown>;
+    if (m["format"] !== "dissolomaster-archive" || typeof m["appVersion"] !== "string" ||
+        typeof m["startedAt"] !== "string" || !Array.isArray(m["interruptions"])) return false;
+  }
   return true;
 }
 

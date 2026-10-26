@@ -21,6 +21,7 @@ import {
   saveScientificData,
   TrialStoreError,
 } from "../TrialStore";
+import { calculateArchiveHash, type ExportPayload } from "../../utils/export";
 import type { TrialConfig } from "../../types/timeline";
 import type { ActionEvent } from "../../timer/EventRecord";
 import type { DissolutionCorrectionConfig, RawMeasurement } from "../../types/science";
@@ -338,5 +339,49 @@ describe("Import d'un essai depuis un JSON exporté", () => {
     const trial = await getTrial(storageId);
     expect(trial.records[0].deviationMs).toBe(10_000);
     expect(trial.records[0].status).toBe("confirmed");
+  });
+
+  it("refuse une archive dont l'empreinte ne correspond pas", async () => {
+    const archive: ExportPayload = {
+      ...validPayload,
+      intendedUse: "research-reference-only",
+      schemaVersion: 3,
+      manifest: {
+        format: "dissolomaster-archive",
+        appVersion: "0.5.0-research",
+        storageSchemaVersion: 3,
+        status: "completed",
+        startedAt: validPayload.exportedAt,
+        completedAt: validPayload.exportedAt,
+        lastCheckpointAt: validPayload.exportedAt,
+        interruptions: [],
+        integritySha256: "invalid",
+      },
+    };
+    await expect(importTrialFromJSON(archive)).rejects.toThrow("Intégrité de l'archive invalide");
+    expect(await countTrials()).toBe(0);
+  });
+
+  it("restaure une archive versionnée et conserve ses interruptions", async () => {
+    const archive: ExportPayload = {
+      ...validPayload,
+      intendedUse: "research-reference-only",
+      schemaVersion: 3,
+      manifest: {
+        format: "dissolomaster-archive" as const,
+        appVersion: "0.5.0-research",
+        storageSchemaVersion: 3,
+        status: "in-progress" as const,
+        startedAt: validPayload.exportedAt,
+        completedAt: null,
+        lastCheckpointAt: validPayload.exportedAt,
+        interruptions: [{ id: "i-1", reason: "hidden" as const, startedAt: validPayload.exportedAt, endedAt: null }],
+      },
+    };
+    archive.manifest.integritySha256 = await calculateArchiveHash(archive);
+    const storageId = await importTrialFromJSON(archive);
+    const trial = await getTrial(storageId);
+    expect(trial.status).toBe("in-progress");
+    expect(trial.interruptions[0]?.id).toBe("i-1");
   });
 });

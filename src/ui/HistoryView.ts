@@ -20,7 +20,7 @@ import {
   type TrialSummary,
   type StoredTrial,
 } from "../db/TrialStore";
-import { downloadJSON, downloadCSV } from "../utils/export";
+import { downloadArchiveJSON, downloadCSV } from "../utils/export";
 
 export class HistoryView {
   private container: HTMLElement | null = null;
@@ -264,7 +264,7 @@ export class HistoryView {
     try {
       const trial = await getTrial(storageId);
       if (format === "json") {
-        downloadJSON(trial.config, trial.records, trial.scientificData);
+        void downloadArchiveJSON(trial);
       } else {
         downloadCSV(trial.config, trial.records);
       }
