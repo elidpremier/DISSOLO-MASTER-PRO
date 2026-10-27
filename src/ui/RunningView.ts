@@ -121,7 +121,11 @@ export class RunningView {
   }
 
   private renderIdleZone(): string {
-    const next = this.actions[0];
+    const records = this.engine.getRecords();
+    const next =
+      records.length === 0
+        ? this.actions[0]
+        : this.getNextScheduledRecord(this.engine.getElapsedMs())?.action;
     if (!next) {
       return `<div class="alert-zone__idle-content"><p>Aucune action planifiée.</p></div>`;
     }
@@ -221,7 +225,9 @@ export class RunningView {
       const record = this.engine
         .getRecords()
         .find((r) => r.action.id === this.alertActionId);
-      if (record) {
+      if (!record || record.status === "confirmed" || record.status === "missed") {
+        this.clearAlertZone();
+      } else {
         const remaining =
           record.action.scheduledOffsetMs - elapsedMs;
         const timerEl = this.container.querySelector<HTMLElement>(
@@ -235,9 +241,7 @@ export class RunningView {
 
     // Compte à rebours "idle" (prochaine action)
     if (this.alertPhase === "idle") {
-      const next = this.engine
-        .getRecords()
-        .find((r) => r.status === "pending" || r.status === "announced");
+      const next = this.getNextScheduledRecord(elapsedMs);
       if (next) {
         const remaining = next.action.scheduledOffsetMs - elapsedMs;
         const cdEl = this.container.querySelector<HTMLElement>("#idle-countdown");
@@ -411,6 +415,14 @@ export class RunningView {
     if (!zoneEl) return;
     zoneEl.className = "alert-zone alert-zone--idle";
     zoneEl.innerHTML = this.renderIdleZone();
+  }
+
+  private getNextScheduledRecord(elapsedMs: number): ActionEvent | undefined {
+    return this.engine.getRecords().find(
+      (record) =>
+        (record.status === "pending" || record.status === "announced") &&
+        record.action.scheduledOffsetMs >= elapsedMs
+    );
   }
 
   // -------------------------------------------------------------------------
